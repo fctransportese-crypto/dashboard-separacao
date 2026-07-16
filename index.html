@@ -2,70 +2,76 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <title>Painel Andon - Logística</title>
+    <title>Painel Andon - Performance Logística</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        body { font-family: 'Segoe UI', sans-serif; background: #0a192f; color: white; margin: 0; padding: 20px; }
-        .dashboard { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; }
-        .card { background: #112240; padding: 20px; border-radius: 15px; border-left: 5px solid #64ffda; box-shadow: 0 4px 15px rgba(0,0,0,0.3); }
-        h1 { text-align: center; color: #64ffda; }
-        .value { font-size: 32px; font-weight: bold; }
-        canvas { background: white; border-radius: 15px; padding: 20px; margin-top: 20px; }
+        body { font-family: 'Segoe UI', sans-serif; background: #0f172a; color: #f8fafc; margin: 0; padding: 20px; }
+        h1 { text-align: center; color: #38bdf8; margin-bottom: 30px; }
+        .grid-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 30px; }
+        .card { background: #1e293b; padding: 20px; border-radius: 12px; border-bottom: 4px solid #38bdf8; text-align: center; }
+        .valor { font-size: 24px; font-weight: bold; display: block; color: #fff; }
+        .container-grafico { background: #1e293b; padding: 20px; border-radius: 12px; }
     </style>
 </head>
 <body>
 
-    <h1>Painel de Eficiência Operacional</h1>
-    <div class="dashboard">
-        <div class="card"><h3>Peso Total</h3><div id="peso-total" class="value">0 Kg</div></div>
-        <div class="card"><h3>Cargas Processadas</h3><div id="total-cargas" class="value">0</div></div>
+    <h1>Gestão à Vista: Performance de Separação</h1>
+
+    <div class="grid-stats">
+        <div class="card">Peso Total Separado<span id="txt-peso" class="valor">0 Kg</span></div>
+        <div class="card">Total de Cargas<span id="txt-cargas" class="valor">0</span></div>
     </div>
 
-    <canvas id="meuGrafico"></canvas>
+    <div class="container-grafico">
+        <canvas id="graficoSeparadores"></canvas>
+    </div>
 
     <script>
-        const urlCSV = 'COLE_SEU_LINK_CSV_AQUI'; // <--- INSIRA O LINK AQUI
+        const urlCSV = 'COLE_SEU_LINK_CSV_AQUI'; // <--- COLE SEU LINK AQUI
 
-        async function atualizarPainel() {
+        async function atualizarDados() {
             const res = await fetch(urlCSV);
             const data = await res.text();
+            
             Papa.parse(data, {
                 header: true, dynamicTyping: true,
                 complete: function(results) {
-                    let pesoTotal = 0;
+                    let acumulado = {};
+                    let totalPeso = 0;
                     let contagem = 0;
-                    
-                    results.data.forEach(row => {
-                        // Limpeza de dados: transforma "2.739,00" em 2739
-                        let peso = typeof row.Peso === 'string' ? parseFloat(row.Peso.replace('.', '').replace(',', '.')) : row.Peso;
-                        if (!isNaN(peso) && peso > 0) {
-                            pesoTotal += peso;
+
+                    results.data.forEach(r => {
+                        let peso = typeof r.Peso === 'string' ? parseFloat(r.Peso.replace('.', '').replace(',', '.')) : r.Peso;
+                        if (r.Responsável && peso > 0) {
+                            acumulado[r.Responsável] = (acumulado[r.Responsável] || 0) + peso;
+                            totalPeso += peso;
                             contagem++;
                         }
                     });
 
-                    document.getElementById('peso-total').innerText = pesoTotal.toLocaleString('pt-BR') + " Kg";
-                    document.getElementById('total-cargas').innerText = contagem;
+                    document.getElementById('txt-peso').innerText = totalPeso.toLocaleString('pt-BR') + " Kg";
+                    document.getElementById('txt-cargas').innerText = contagem;
                     
-                    renderizarGrafico(results.data);
+                    desenharGrafico(Object.keys(acumulado), Object.values(acumulado));
                 }
             });
         }
 
-        function renderizarGrafico(data) {
-            const ctx = document.getElementById('meuGrafico').getContext('2d');
+        function desenharGrafico(labels, valores) {
+            const ctx = document.getElementById('graficoSeparadores').getContext('2d');
             new Chart(ctx, {
                 type: 'bar',
                 data: {
-                    labels: ['Eficiência Atual'],
-                    datasets: [{ label: 'Peso Total (Kg)', data: [1000], backgroundColor: '#64ffda' }]
-                }
+                    labels: labels,
+                    datasets: [{ label: 'Kg por Separador', data: valores, backgroundColor: '#38bdf8' }]
+                },
+                options: { responsive: true, maintainAspectRatio: false }
             });
         }
 
-        setInterval(atualizarPainel, 60000); // Atualiza a cada minuto
-        atualizarPainel();
+        setInterval(atualizarDados, 60000);
+        atualizarDados();
     </script>
 </body>
 </html>
