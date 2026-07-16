@@ -2,36 +2,70 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <title>Painel de Separação Lean</title>
+    <title>Painel Andon - Logística</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        body { font-family: sans-serif; background: #001f3f; color: white; padding: 20px; }
-        .card { background: #0074D9; padding: 20px; border-radius: 10px; margin: 10px; display: inline-block; width: 300px; }
-        h1 { text-align: center; }
+        body { font-family: 'Segoe UI', sans-serif; background: #0a192f; color: white; margin: 0; padding: 20px; }
+        .dashboard { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; }
+        .card { background: #112240; padding: 20px; border-radius: 15px; border-left: 5px solid #64ffda; box-shadow: 0 4px 15px rgba(0,0,0,0.3); }
+        h1 { text-align: center; color: #64ffda; }
+        .value { font-size: 32px; font-weight: bold; }
+        canvas { background: white; border-radius: 15px; padding: 20px; margin-top: 20px; }
     </style>
 </head>
 <body>
+
     <h1>Painel de Eficiência Operacional</h1>
-    <div id="painel">
-        <div class="card"><h3>Peso Total</h3><p id="total-peso">Carregando...</p></div>
-        <div class="card"><h3>Eficiência (Kg/Min)</h3><p id="eficiencia">Calculando...</p></div>
+    <div class="dashboard">
+        <div class="card"><h3>Peso Total</h3><div id="peso-total" class="value">0 Kg</div></div>
+        <div class="card"><h3>Cargas Processadas</h3><div id="total-cargas" class="value">0</div></div>
     </div>
 
-    <script>
-        const url = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSL3CqlLCDtDL86CTEbVn0xWs1CmiG8cRY2sje9c9sqy8z4SMj3Fhqh_od5rte0yNP6fxPYB4VoFZwX/pub?gid=0&single=true&output=csv'; // <--- COLE O LINK AQUI
+    <canvas id="meuGrafico"></canvas>
 
-        function carregarDados() {
-            Papa.parse(url, {
-                download: true, header: true, dynamicTyping: true,
+    <script>
+        const urlCSV = 'COLE_SEU_LINK_CSV_AQUI'; // <--- INSIRA O LINK AQUI
+
+        async function atualizarPainel() {
+            const res = await fetch(urlCSV);
+            const data = await res.text();
+            Papa.parse(data, {
+                header: true, dynamicTyping: true,
                 complete: function(results) {
-                    let peso = 0;
-                    results.data.forEach(r => { if(r.Peso) peso += r.Peso; });
-                    document.getElementById('total-peso').innerText = peso + " Kg";
+                    let pesoTotal = 0;
+                    let contagem = 0;
+                    
+                    results.data.forEach(row => {
+                        // Limpeza de dados: transforma "2.739,00" em 2739
+                        let peso = typeof row.Peso === 'string' ? parseFloat(row.Peso.replace('.', '').replace(',', '.')) : row.Peso;
+                        if (!isNaN(peso) && peso > 0) {
+                            pesoTotal += peso;
+                            contagem++;
+                        }
+                    });
+
+                    document.getElementById('peso-total').innerText = pesoTotal.toLocaleString('pt-BR') + " Kg";
+                    document.getElementById('total-cargas').innerText = contagem;
+                    
+                    renderizarGrafico(results.data);
                 }
             });
         }
-        setInterval(carregarDados, 300000); // Atualiza a cada 5 min
-        carregarDados();
+
+        function renderizarGrafico(data) {
+            const ctx = document.getElementById('meuGrafico').getContext('2d');
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['Eficiência Atual'],
+                    datasets: [{ label: 'Peso Total (Kg)', data: [1000], backgroundColor: '#64ffda' }]
+                }
+            });
+        }
+
+        setInterval(atualizarPainel, 60000); // Atualiza a cada minuto
+        atualizarPainel();
     </script>
 </body>
 </html>
