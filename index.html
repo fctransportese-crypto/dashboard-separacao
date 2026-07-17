@@ -1,153 +1,91 @@
 <!DOCTYPE html>
-
 <html lang="pt-br">
-
 <head>
-
     <meta charset="UTF-8">
-
     <title>Painel Andon - Performance Logística</title>
-
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
-
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
     <style>
-
         body { font-family: 'Segoe UI', sans-serif; background: #0f172a; color: #f8fafc; margin: 0; padding: 20px; }
-
         h1 { text-align: center; color: #38bdf8; margin-bottom: 30px; }
-
         .grid-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 30px; }
-
         .card { background: #1e293b; padding: 20px; border-radius: 12px; border-bottom: 4px solid #38bdf8; text-align: center; }
-
         .valor { font-size: 24px; font-weight: bold; display: block; color: #fff; }
-
-        .container-grafico { background: #1e293b; padding: 20px; border-radius: 12px; }
-
+        .container-grafico { background: #1e293b; padding: 20px; border-radius: 12px; margin-bottom: 20px; }
     </style>
-
 </head>
-
 <body>
-
-
 
     <h1>Gestão à Vista: Performance de Separação</h1>
 
-
-
     <div class="grid-stats">
-
-        <div class="card">Peso Total Separado<span id="txt-peso" class="valor">0 Kg</span></div>
-
-        <div class="card">Total de Cargas<span id="txt-cargas" class="valor">0</span></div>
-
+        <div class="card">Peso Total<span id="txt-peso" class="valor">0 Kg</span></div>
+        <div class="card">Total Cargas<span id="txt-cargas" class="valor">0</span></div>
+        <div class="card">Tempo Médio/Carga<span id="txt-tempo" class="valor">0 min</span></div>
     </div>
-
-
 
     <div class="container-grafico">
-
         <canvas id="graficoSeparadores"></canvas>
-
     </div>
 
-
-
     <script>
-
-        const urlCSV = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSL3CqlLCDtDL86CTEbVn0xWs1CmiG8cRY2sje9c9sqy8z4SMj3Fhqh_od5rte0yNP6fxPYB4VoFZwX/pub?gid=0&single=true&output=csv'; // <--- COLE SEU LINK AQUI
-
-
+        const urlCSV = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSL3CqlLCDtDL86CTEbVn0xWs1CmiG8cRY2sje9c9sqy8z4SMj3Fhqh_od5rte0yNP6fxPYB4VoFZwX/pub?gid=0&single=true&output=csv';
 
         async function atualizarDados() {
-
             const res = await fetch(urlCSV);
-
             const data = await res.text();
-
             
-
             Papa.parse(data, {
-
                 header: true, dynamicTyping: true,
-
                 complete: function(results) {
-
-                    let acumulado = {};
-
-                    let totalPeso = 0;
-
-                    let contagem = 0;
-
-
+                    let totalPeso = 0, contagem = 0, tempoTotalGeral = 0;
+                    let acumuladoPeso = {};
+                    let acumuladoTempo = {};
+                    let contagemPorResp = {};
 
                     results.data.forEach(r => {
-
                         let peso = typeof r.Peso === 'string' ? parseFloat(r.Peso.replace('.', '').replace(',', '.')) : r.Peso;
+                        
+                        // Cálculo de tempo (diferença em minutos)
+                        let inicio = new Date('1970-01-01T' + r['Horário de início']);
+                        let fim = new Date('1970-01-01T' + r['Horário Termino']);
+                        let duracao = (fim - inicio) / 60000;
 
-                        if (r.Responsável && peso > 0) {
-
-                            acumulado[r.Responsável] = (acumulado[r.Responsável] || 0) + peso;
-
+                        if (r.Responsável && peso > 0 && !isNaN(duracao)) {
+                            acumuladoPeso[r.Responsável] = (acumuladoPeso[r.Responsável] || 0) + peso;
+                            acumuladoTempo[r.Responsável] = (acumuladoTempo[r.Responsável] || 0) + duracao;
+                            contagemPorResp[r.Responsável] = (contagemPorResp[r.Responsável] || 0) + 1;
+                            
                             totalPeso += peso;
-
                             contagem++;
-
+                            tempoTotalGeral += duracao;
                         }
-
                     });
 
-
-
                     document.getElementById('txt-peso').innerText = totalPeso.toLocaleString('pt-BR') + " Kg";
-
                     document.getElementById('txt-cargas').innerText = contagem;
-
+                    document.getElementById('txt-tempo').innerText = (contagem > 0 ? (tempoTotalGeral / contagem).toFixed(1) : 0) + " min";
                     
-
-                    desenharGrafico(Object.keys(acumulado), Object.values(acumulado));
-
+                    desenharGrafico(acumuladoPeso);
                 }
-
             });
-
         }
 
-
-
-        function desenharGrafico(labels, valores) {
-
+        function desenharGrafico(dados) {
             const ctx = document.getElementById('graficoSeparadores').getContext('2d');
-
-            new Chart(ctx, {
-
+            if(window.meuGrafico) window.meuGrafico.destroy();
+            window.meuGrafico = new Chart(ctx, {
                 type: 'bar',
-
                 data: {
-
-                    labels: labels,
-
-                    datasets: [{ label: 'Kg por Separador', data: valores, backgroundColor: '#38bdf8' }]
-
+                    labels: Object.keys(dados),
+                    datasets: [{ label: 'Kg por Separador', data: Object.values(dados), backgroundColor: '#38bdf8' }]
                 },
-
                 options: { responsive: true, maintainAspectRatio: false }
-
             });
-
         }
-
-
 
         setInterval(atualizarDados, 60000);
-
         atualizarDados();
-
     </script>
-
 </body>
-
 </html>
