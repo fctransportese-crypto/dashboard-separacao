@@ -11,7 +11,10 @@
         .grid-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 30px; }
         .card { background: #1e293b; padding: 20px; border-radius: 12px; border-bottom: 4px solid #38bdf8; text-align: center; }
         .valor { font-size: 24px; font-weight: bold; display: block; color: #fff; }
-        .container-grafico { background: #1e293b; padding: 20px; border-radius: 12px; margin-bottom: 20px; }
+        .container-grafico { background: #1e293b; padding: 20px; border-radius: 12px; margin-bottom: 20px; height: 350px; }
+        table { width: 100%; border-collapse: collapse; background: #1e293b; border-radius: 12px; overflow: hidden; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #334155; }
+        th { color: #38bdf8; }
     </style>
 </head>
 <body>
@@ -21,15 +24,20 @@
     <div class="grid-stats">
         <div class="card">Peso Total<span id="txt-peso" class="valor">0 Kg</span></div>
         <div class="card">Total Cargas<span id="txt-cargas" class="valor">0</span></div>
-        <div class="card">Tempo Médio/Carga<span id="txt-tempo" class="valor">0 min</span></div>
+        <div class="card">Tempo Médio Equipe<span id="txt-tempo" class="valor">0 min</span></div>
     </div>
 
     <div class="container-grafico">
         <canvas id="graficoSeparadores"></canvas>
     </div>
 
+    <table id="tabelaTempo">
+        <thead><tr><th>Separador</th><th>Tempo Médio por Carga</th></tr></thead>
+        <tbody></tbody>
+    </table>
+
     <script>
-        const urlCSV = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSL3CqlLCDtDL86CTEbVn0xWs1CmiG8cRY2sje9c9sqy8z4SMj3Fhqh_od5rte0yNP6fxPYB4VoFZwX/pub?gid=0&single=true&output=csv';
+        const urlCSV = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSL3CqlLCDtDL86CTEBVn0xWs1CmiG8cRY2sje9c9sqy8z4SMj3Fhqh_od5rte0yNP6fxPYB4VoFZwX/pub?gid=0&single=true&output=csv';
 
         async function atualizarDados() {
             const res = await fetch(urlCSV);
@@ -39,23 +47,18 @@
                 header: true, dynamicTyping: true,
                 complete: function(results) {
                     let totalPeso = 0, contagem = 0, tempoTotalGeral = 0;
-                    let acumuladoPeso = {};
-                    let acumuladoTempo = {};
-                    let contagemPorResp = {};
+                    let pesoPorResp = {}, tempoPorResp = {}, contagemPorResp = {};
 
                     results.data.forEach(r => {
                         let peso = typeof r.Peso === 'string' ? parseFloat(r.Peso.replace('.', '').replace(',', '.')) : r.Peso;
-                        
-                        // Cálculo de tempo (diferença em minutos)
                         let inicio = new Date('1970-01-01T' + r['Horário de início']);
                         let fim = new Date('1970-01-01T' + r['Horário Termino']);
                         let duracao = (fim - inicio) / 60000;
 
                         if (r.Responsável && peso > 0 && !isNaN(duracao)) {
-                            acumuladoPeso[r.Responsável] = (acumuladoPeso[r.Responsável] || 0) + peso;
-                            acumuladoTempo[r.Responsável] = (acumuladoTempo[r.Responsável] || 0) + duracao;
+                            pesoPorResp[r.Responsável] = (pesoPorResp[r.Responsável] || 0) + peso;
+                            tempoPorResp[r.Responsável] = (tempoPorResp[r.Responsável] || 0) + duracao;
                             contagemPorResp[r.Responsável] = (contagemPorResp[r.Responsável] || 0) + 1;
-                            
                             totalPeso += peso;
                             contagem++;
                             tempoTotalGeral += duracao;
@@ -66,9 +69,20 @@
                     document.getElementById('txt-cargas').innerText = contagem;
                     document.getElementById('txt-tempo').innerText = (contagem > 0 ? (tempoTotalGeral / contagem).toFixed(1) : 0) + " min";
                     
-                    desenharGrafico(acumuladoPeso);
+                    // Atualiza Tabela e Gráfico
+                    atualizarTabela(tempoPorResp, contagemPorResp);
+                    desenharGrafico(pesoPorResp);
                 }
             });
+        }
+
+        function atualizarTabela(tempoTotal, contagem) {
+            let tbody = document.querySelector("#tabelaTempo tbody");
+            tbody.innerHTML = "";
+            for (let nome in tempoTotal) {
+                let media = (tempoTotal[nome] / contagem[nome]).toFixed(1);
+                tbody.innerHTML += `<tr><td>${nome}</td><td>${media} min</td></tr>`;
+            }
         }
 
         function desenharGrafico(dados) {
@@ -76,10 +90,7 @@
             if(window.meuGrafico) window.meuGrafico.destroy();
             window.meuGrafico = new Chart(ctx, {
                 type: 'bar',
-                data: {
-                    labels: Object.keys(dados),
-                    datasets: [{ label: 'Kg por Separador', data: Object.values(dados), backgroundColor: '#38bdf8' }]
-                },
+                data: { labels: Object.keys(dados), datasets: [{ label: 'Kg por Separador', data: Object.values(dados), backgroundColor: '#38bdf8' }] },
                 options: { responsive: true, maintainAspectRatio: false }
             });
         }
