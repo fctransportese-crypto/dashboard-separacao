@@ -12,7 +12,7 @@
         .card { background: #1e293b; padding: 20px; border-radius: 12px; border-bottom: 4px solid #38bdf8; text-align: center; }
         .valor { font-size: 24px; font-weight: bold; display: block; color: #fff; }
         .container-grafico { background: #1e293b; padding: 20px; border-radius: 12px; margin-bottom: 20px; height: 350px; }
-        table { width: 100%; border-collapse: collapse; background: #1e293b; border-radius: 12px; overflow: hidden; }
+        table { width: 100%; border-collapse: collapse; background: #1e293b; border-radius: 12px; overflow: hidden; margin-top: 20px; }
         th, td { padding: 12px; text-align: left; border-bottom: 1px solid #334155; }
         th { color: #38bdf8; }
     </style>
@@ -44,18 +44,22 @@
             const data = await res.text();
             
             Papa.parse(data, {
-                header: true, dynamicTyping: true,
+                header: true, 
+                dynamicTyping: true, 
+                skipEmptyLines: true,
+                transformHeader: function(h) { return h.trim(); }, // CORREÇÃO: Remove espaços extras dos nomes das colunas
                 complete: function(results) {
                     let totalPeso = 0, contagem = 0, tempoTotalGeral = 0;
                     let pesoPorResp = {}, tempoPorResp = {}, contagemPorResp = {};
 
                     results.data.forEach(r => {
-                        let peso = typeof r.Peso === 'string' ? parseFloat(r.Peso.replace('.', '').replace(',', '.')) : r.Peso;
-                        let inicio = new Date('1970-01-01T' + r['Horário de início']);
-                        let fim = new Date('1970-01-01T' + r['Horário Termino']);
+                        // CORREÇÃO: Busca as colunas de forma mais flexível
+                        let peso = parseFloat(String(r.Peso || 0).replace('.', '').replace(',', '.'));
+                        let inicio = new Date('1970-01-01T' + (r['Horário de início'] || '00:00:00'));
+                        let fim = new Date('1970-01-01T' + (r['Horário Termino'] || '00:00:00'));
                         let duracao = (fim - inicio) / 60000;
 
-                        if (r.Responsável && peso > 0 && !isNaN(duracao)) {
+                        if (r.Responsável && peso > 0 && duracao > 0) {
                             pesoPorResp[r.Responsável] = (pesoPorResp[r.Responsável] || 0) + peso;
                             tempoPorResp[r.Responsável] = (tempoPorResp[r.Responsável] || 0) + duracao;
                             contagemPorResp[r.Responsável] = (contagemPorResp[r.Responsável] || 0) + 1;
@@ -65,11 +69,10 @@
                         }
                     });
 
-                    document.getElementById('txt-peso').innerText = totalPeso.toLocaleString('pt-BR') + " Kg";
+                    document.getElementById('txt-peso').innerText = totalPeso.toLocaleString('pt-BR', {minimumFractionDigits: 2}) + " Kg";
                     document.getElementById('txt-cargas').innerText = contagem;
                     document.getElementById('txt-tempo').innerText = (contagem > 0 ? (tempoTotalGeral / contagem).toFixed(1) : 0) + " min";
                     
-                    // Atualiza Tabela e Gráfico
                     atualizarTabela(tempoPorResp, contagemPorResp);
                     desenharGrafico(pesoPorResp);
                 }
