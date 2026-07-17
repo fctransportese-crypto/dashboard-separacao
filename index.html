@@ -11,6 +11,7 @@
         .grid-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 30px; }
         .card { background: #1e293b; padding: 20px; border-radius: 12px; border-bottom: 4px solid #38bdf8; text-align: center; }
         .valor { font-size: 24px; font-weight: bold; display: block; color: #fff; }
+        .alerta-meta { background: #7f1d1d; border-bottom: 4px solid #ef4444; } /* Estilo para nova função */
         .container-grafico { background: #1e293b; padding: 20px; border-radius: 12px; margin-bottom: 20px; height: 350px; }
         table { width: 100%; border-collapse: collapse; background: #1e293b; border-radius: 12px; overflow: hidden; margin-top: 20px; }
         th, td { padding: 12px; text-align: left; border-bottom: 1px solid #334155; }
@@ -25,6 +26,7 @@
         <div class="card">Peso Total<span id="txt-peso" class="valor">0 Kg</span></div>
         <div class="card">Total Cargas<span id="txt-cargas" class="valor">0</span></div>
         <div class="card">Tempo Médio Equipe<span id="txt-tempo" class="valor">0 min</span></div>
+        <div class="card" id="card-meta">Status Meta<span id="txt-meta" class="valor">--</span></div>
     </div>
 
     <div class="container-grafico">
@@ -37,22 +39,19 @@
     </table>
 
     <script>
-        const urlCSV = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSL3CqlLCDtDL86CTEbVn0xWs1CmiG8cRY2sje9c9sqy8z4SMj3Fhqh_od5rte0yNP6fxPYB4VoFZwX/pub?gid=0&single=true&output=csv';
+        const urlCSV = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSL3CqlLCDtDL86CTEBVn0xWs1CmiG8cRY2sje9c9sqy8z4SMj3Fhqh_od5rte0yNP6fxPYB4VoFZwX/pub?gid=0&single=true&output=csv';
 
         async function atualizarDados() {
             const res = await fetch(urlCSV);
             const data = await res.text();
             
             Papa.parse(data, {
-                header: true, 
-                dynamicTyping: true, 
-                skipEmptyLines: true,
+                header: true, dynamicTyping: true, skipEmptyLines: true,
                 complete: function(results) {
                     let totalPeso = 0, contagem = 0, tempoTotalGeral = 0;
                     let pesoPorResp = {}, tempoPorResp = {}, contagemPorResp = {};
 
                     results.data.forEach(r => {
-                        // Tenta pegar o valor das colunas ignorando espaços nos nomes
                         let keys = Object.keys(r);
                         let colResp = keys.find(k => k.toLowerCase().includes('respons') || k.toLowerCase().includes('nome'));
                         let colPeso = keys.find(k => k.toLowerCase().includes('peso'));
@@ -77,12 +76,30 @@
 
                     document.getElementById('txt-peso').innerText = totalPeso.toLocaleString('pt-BR', {minimumFractionDigits: 2}) + " Kg";
                     document.getElementById('txt-cargas').innerText = contagem;
-                    document.getElementById('txt-tempo').innerText = (contagem > 0 ? (tempoTotalGeral / contagem).toFixed(1) : 0) + " min";
+                    let mediaGeral = contagem > 0 ? (tempoTotalGeral / contagem) : 0;
+                    document.getElementById('txt-tempo').innerText = mediaGeral.toFixed(1) + " min";
                     
+                    // --- NOVA FUNÇÃO: Checagem de Meta ---
+                    verificarMeta(mediaGeral);
+
                     atualizarTabela(tempoPorResp, contagemPorResp);
                     desenharGrafico(pesoPorResp);
                 }
             });
+        }
+
+        // Nova função isolada
+        function verificarMeta(media) {
+            const card = document.getElementById('card-meta');
+            const txt = document.getElementById('txt-meta');
+            const META_LIMITE = 30; // Defina aqui seu tempo limite em minutos
+            if (media > META_LIMITE) {
+                card.className = "card alerta-meta";
+                txt.innerText = "ATENÇÃO";
+            } else {
+                card.className = "card";
+                txt.innerText = "NO PRAZO";
+            }
         }
 
         function atualizarTabela(tempoTotal, contagem) {
