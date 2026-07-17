@@ -1,111 +1,23 @@
 <!DOCTYPE html>
-<html lang="pt-br">
-<head>
-    <meta charset="UTF-8">
-    <title>Painel Andon - Performance Logística</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <style>
-        body { font-family: 'Segoe UI', sans-serif; background: #0f172a; color: #f8fafc; margin: 0; padding: 20px; }
-        h1 { text-align: center; color: #38bdf8; margin-bottom: 30px; }
-        .grid-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 30px; }
-        .card { background: #1e293b; padding: 20px; border-radius: 12px; border-bottom: 4px solid #38bdf8; text-align: center; }
-        .valor { font-size: 24px; font-weight: bold; display: block; color: #fff; }
-        .container-grafico { background: #1e293b; padding: 20px; border-radius: 12px; margin-bottom: 20px; height: 350px; }
-        table { width: 100%; border-collapse: collapse; background: #1e293b; border-radius: 12px; overflow: hidden; margin-top: 20px; }
-        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #334155; }
-        th { color: #38bdf8; }
-    </style>
-</head>
+<html>
 <body>
-
-    <h1>Gestão à Vista: Performance de Separação</h1>
-
-    <div class="grid-stats">
-        <div class="card">Peso Total<span id="txt-peso" class="valor">0 Kg</span></div>
-        <div class="card">Total Cargas<span id="txt-cargas" class="valor">0</span></div>
-        <div class="card">Tempo Médio Equipe<span id="txt-tempo" class="valor">0 min</span></div>
-    </div>
-
-    <div class="container-grafico">
-        <canvas id="graficoSeparadores"></canvas>
-    </div>
-
-    <table id="tabelaTempo">
-        <thead><tr><th>Separador</th><th>Tempo Médio por Carga</th></tr></thead>
-        <tbody></tbody>
-    </table>
-
+    <h1>Diagnóstico do Dashboard</h1>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
     <script>
         const urlCSV = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSL3CqlLCDtDL86CTEBVn0xWs1CmiG8cRY2sje9c9sqy8z4SMj3Fhqh_od5rte0yNP6fxPYB4VoFZwX/pub?gid=0&single=true&output=csv';
 
-        async function atualizarDados() {
-            const res = await fetch(urlCSV);
-            const data = await res.text();
-            
-            Papa.parse(data, {
-                header: true, 
-                dynamicTyping: true, 
-                skipEmptyLines: true,
-                complete: function(results) {
-                    let totalPeso = 0, contagem = 0, tempoTotalGeral = 0;
-                    let pesoPorResp = {}, tempoPorResp = {}, contagemPorResp = {};
-
-                    results.data.forEach(r => {
-                        // Tenta pegar o valor das colunas ignorando espaços nos nomes
-                        let keys = Object.keys(r);
-                        let colResp = keys.find(k => k.toLowerCase().includes('respons') || k.toLowerCase().includes('nome'));
-                        let colPeso = keys.find(k => k.toLowerCase().includes('peso'));
-                        let colIni = keys.find(k => k.toLowerCase().includes('início') || k.toLowerCase().includes('inicio'));
-                        let colFim = keys.find(k => k.toLowerCase().includes('termino') || k.toLowerCase().includes('término'));
-
-                        let resp = r[colResp];
-                        let peso = parseFloat(String(r[colPeso] || 0).replace('.', '').replace(',', '.'));
-                        let inicio = new Date('1970-01-01T' + (r[colIni] || '00:00:00'));
-                        let fim = new Date('1970-01-01T' + (r[colFim] || '00:00:00'));
-                        let duracao = (fim - inicio) / 60000;
-
-                        if (resp && peso > 0 && duracao > 0) {
-                            pesoPorResp[resp] = (pesoPorResp[resp] || 0) + peso;
-                            tempoPorResp[resp] = (tempoPorResp[resp] || 0) + duracao;
-                            contagemPorResp[resp] = (contagemPorResp[resp] || 0) + 1;
-                            totalPeso += peso;
-                            contagem++;
-                            tempoTotalGeral += duracao;
-                        }
-                    });
-
-                    document.getElementById('txt-peso').innerText = totalPeso.toLocaleString('pt-BR', {minimumFractionDigits: 2}) + " Kg";
-                    document.getElementById('txt-cargas').innerText = contagem;
-                    document.getElementById('txt-tempo').innerText = (contagem > 0 ? (tempoTotalGeral / contagem).toFixed(1) : 0) + " min";
-                    
-                    atualizarTabela(tempoPorResp, contagemPorResp);
-                    desenharGrafico(pesoPorResp);
-                }
+        fetch(urlCSV)
+            .then(res => res.text())
+            .then(data => {
+                Papa.parse(data, {
+                    header: true,
+                    complete: function(results) {
+                        // Isso vai abrir um alerta no seu navegador com os nomes das colunas
+                        alert("Colunas encontradas: " + Object.keys(results.data[0]).join(", "));
+                        console.log("Dados completos:", results.data);
+                    }
+                });
             });
-        }
-
-        function atualizarTabela(tempoTotal, contagem) {
-            let tbody = document.querySelector("#tabelaTempo tbody");
-            tbody.innerHTML = "";
-            for (let nome in tempoTotal) {
-                let media = (tempoTotal[nome] / contagem[nome]).toFixed(1);
-                tbody.innerHTML += `<tr><td>${nome}</td><td>${media} min</td></tr>`;
-            }
-        }
-
-        function desenharGrafico(dados) {
-            const ctx = document.getElementById('graficoSeparadores').getContext('2d');
-            if(window.meuGrafico) window.meuGrafico.destroy();
-            window.meuGrafico = new Chart(ctx, {
-                type: 'bar',
-                data: { labels: Object.keys(dados), datasets: [{ label: 'Kg por Separador', data: Object.values(dados), backgroundColor: '#38bdf8' }] },
-                options: { responsive: true, maintainAspectRatio: false }
-            });
-        }
-
-        setInterval(atualizarDados, 60000);
-        atualizarDados();
     </script>
 </body>
 </html>
