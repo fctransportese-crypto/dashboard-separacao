@@ -47,22 +47,28 @@
                 header: true, 
                 dynamicTyping: true, 
                 skipEmptyLines: true,
-                transformHeader: function(h) { return h.trim(); }, // CORREÇÃO: Remove espaços extras dos nomes das colunas
                 complete: function(results) {
                     let totalPeso = 0, contagem = 0, tempoTotalGeral = 0;
                     let pesoPorResp = {}, tempoPorResp = {}, contagemPorResp = {};
 
                     results.data.forEach(r => {
-                        // CORREÇÃO: Busca as colunas de forma mais flexível
-                        let peso = parseFloat(String(r.Peso || 0).replace('.', '').replace(',', '.'));
-                        let inicio = new Date('1970-01-01T' + (r['Horário de início'] || '00:00:00'));
-                        let fim = new Date('1970-01-01T' + (r['Horário Termino'] || '00:00:00'));
+                        // Tenta pegar o valor das colunas ignorando espaços nos nomes
+                        let keys = Object.keys(r);
+                        let colResp = keys.find(k => k.toLowerCase().includes('respons') || k.toLowerCase().includes('nome'));
+                        let colPeso = keys.find(k => k.toLowerCase().includes('peso'));
+                        let colIni = keys.find(k => k.toLowerCase().includes('início') || k.toLowerCase().includes('inicio'));
+                        let colFim = keys.find(k => k.toLowerCase().includes('termino') || k.toLowerCase().includes('término'));
+
+                        let resp = r[colResp];
+                        let peso = parseFloat(String(r[colPeso] || 0).replace('.', '').replace(',', '.'));
+                        let inicio = new Date('1970-01-01T' + (r[colIni] || '00:00:00'));
+                        let fim = new Date('1970-01-01T' + (r[colFim] || '00:00:00'));
                         let duracao = (fim - inicio) / 60000;
 
-                        if (r.Responsável && peso > 0 && duracao > 0) {
-                            pesoPorResp[r.Responsável] = (pesoPorResp[r.Responsável] || 0) + peso;
-                            tempoPorResp[r.Responsável] = (tempoPorResp[r.Responsável] || 0) + duracao;
-                            contagemPorResp[r.Responsável] = (contagemPorResp[r.Responsável] || 0) + 1;
+                        if (resp && peso > 0 && duracao > 0) {
+                            pesoPorResp[resp] = (pesoPorResp[resp] || 0) + peso;
+                            tempoPorResp[resp] = (tempoPorResp[resp] || 0) + duracao;
+                            contagemPorResp[resp] = (contagemPorResp[resp] || 0) + 1;
                             totalPeso += peso;
                             contagem++;
                             tempoTotalGeral += duracao;
