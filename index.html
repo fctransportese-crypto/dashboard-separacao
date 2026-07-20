@@ -53,11 +53,11 @@
             width: 180px;
             height: auto;
         }
-        .percentage-display { font-size: 26px; font-weight: bold; color: #38bdf8; margin: 2px 0; }
+        .percentage-display { font-size: 28px; font-weight: bold; color: #38bdf8; margin: 4px 0; }
         .progress-bar-container { width: 100%; background-color: #334155; border-radius: 10px; height: 10px; overflow: hidden; margin-bottom: 8px; }
         .progress-bar { height: 100%; background: linear-gradient(90deg, #f44336, #ff9800); width: 100%; border-radius: 10px; transition: width 0.8s ease-in-out; }
         .truck-inner-text { font-size: 9px; font-family: 'Roboto', sans-serif; font-weight: bold; text-anchor: middle; dominant-baseline: middle; pointer-events: none; }
-        #details { font-size: 11px; color: #94a3b8; margin: 0; }
+        #details { font-size: 12px; color: #94a3b8; margin: 0; }
 
         /* Animações CSS */
         @keyframes waveMove { 0% { transform: translateX(0); } 100% { transform: translateX(-50px); } }
@@ -107,13 +107,13 @@
 
     <!-- CARDS SUPERIORES DE INDICADORES -->
     <div class="grid-stats">
-        <div class="card">Peso Total<span id="txt-peso" class="valor">0 Kg</span></div>
+        <div class="card">Peso Total Acumulado<span id="txt-peso" class="valor">0 Kg</span></div>
         <div class="card">Total Cargas<span id="txt-cargas" class="valor">0</span></div>
         <div class="card">Tempo Médio Equipe<span id="txt-tempo" class="valor">0 min</span></div>
 
         <!-- CARD DO CAMINHÃO (ANIMADO) -->
         <div class="card card-caminhao">
-            <div class="titulo-card">Progresso de Carga Pendente</div>
+            <div class="titulo-card">Carregamento da Frota - Carga Pendente</div>
             
             <div class="truck-container">
                 <div class="road-line" id="road"></div>
@@ -247,7 +247,7 @@
                 </svg>
             </div>
 
-            <div class="percentage-display" id="pct-text">0%</div>
+            <div class="percentage-display" id="pct-text">100%</div>
             <div class="progress-bar-container"><div class="progress-bar" id="bar"></div></div>
             <p id="details">A calcular progresso...</p>
         </div>
@@ -277,7 +277,7 @@
     <script>
         const urlCSV = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSL3CqlLCDtDL86CTEbVn0xWs1CmiG8cRY2sje9c9sqy8z4SMj3Fhqh_od5rte0yNP6fxPYB4VoFZwX/pub?gid=0&single=true&output=csv';
 
-        // Função para converter strings formatadas ou números para float com precisão
+        // Converte valores formatados em texto ou número para float com precisão
         function parseNumero(valor) {
             if (typeof valor === 'number') return valor;
             if (!valor) return 0;
@@ -302,10 +302,19 @@
                 Papa.parse(data, {
                     header: true, dynamicTyping: true, skipEmptyLines: true,
                     complete: function(results) {
-                        let totalPeso = 0, pesoPendente = 0, contagem = 0, tempoTotalGeral = 0;
+                        let totalPesoGeral = 0;
+                        let pesoPendenteLote = 0;
+                        let pesoTotalLoteDefinido = 0;
+                        let contagem = 0, tempoTotalGeral = 0;
                         let pesoPorResp = {}, tempoPorResp = {}, contagemPorResp = {};
                         
                         const mesesHistoricos = Array(12).fill(null).map(() => ({ totalTempo: 0, contagem: 0 }));
+
+                        // Tenta localizar se existe coluna de Meta ou Lote explicita
+                        let keysValidas = results.data[0] ? Object.keys(results.data[0]) : [];
+                        let colLote = keysValidas.find(k => k.toLowerCase().includes('lote') || k.toLowerCase().includes('meta_lote'));
+
+                        let totalPesoLoteCalculado = 0;
 
                         results.data.forEach(r => {
                             let keys = Object.keys(r);
@@ -323,9 +332,20 @@
                             let temFim = r[colFim] && String(r[colFim]).trim() !== '';
 
                             if (peso > 0) {
-                                totalPeso += peso;
+                                totalPesoGeral += peso;
+
+                                // Verifica se a linha especifica uma Meta de Lote na planilha
+                                if (colLote && parseNumero(r[colLote]) > 0) {
+                                    pesoTotalLoteDefinido = parseNumero(r[colLote]);
+                                }
+
+                                // Carga Pendente (sem responsável ou sem horário de término)
                                 if (!resp || !temFim) {
-                                    pesoPendente += peso;
+                                    pesoPendenteLote += peso;
+                                    totalPesoLoteCalculado += peso;
+                                } else {
+                                    // Carga Separada do Lote atual
+                                    totalPesoLoteCalculado += peso;
                                 }
                             }
 
@@ -362,16 +382,20 @@
                             }
                         });
 
-                        document.getElementById('txt-peso').innerText = totalPeso.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + " Kg";
+                        document.getElementById('txt-peso').innerText = totalPesoGeral.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + " Kg";
                         document.getElementById('txt-cargas').innerText = contagem;
                         let mediaGeral = contagem > 0 ? (tempoTotalGeral / contagem) : 0;
                         document.getElementById('txt-tempo').innerText = mediaGeral.toFixed(1) + " min";
                         
-                        // Cálculo da Porcentagem Pendente exata
-                        let pctPendente = totalPeso > 0 ? (pesoPendente / totalPeso) * 100 : 0;
+                        // Definição do 100% do Lote:
+                        // Use a coluna do Lote se existir, senão use o peso total das cargas do filtro/lote atual
+                        let pesoLoteFinal = pesoTotalLoteDefinido > 0 ? pesoTotalLoteDefinido : (dataIni && dataFim ? totalPesoGeral : totalPesoLoteCalculado);
+                        if (pesoLoteFinal <= 0) pesoLoteFinal = pesoPendenteLote;
+
+                        let pctPendente = pesoLoteFinal > 0 ? (pesoPendenteLote / pesoLoteFinal) * 100 : 0;
                         pctPendente = Math.max(0, Math.min(100, pctPendente));
 
-                        renderizarCaminhao(pctPendente, pesoPendente, totalPeso);
+                        renderizarCaminhao(pctPendente, pesoPendenteLote, pesoLoteFinal);
                         atualizarTabela(tempoPorResp, contagemPorResp);
                         desenharGrafico(pesoPorResp);
                         gerarGraficoTendencia(mesesHistoricos);
@@ -382,14 +406,14 @@
             }
         }
 
-        // Renderização e Animação do Caminhão com formatação decimal ajustada
-        function renderizarCaminhao(porcentagem, pesoPendente, pesoTotal) {
+        // Renderiza o Caminhão e atualiza o progresso visual do Lote
+        function renderizarCaminhao(porcentagem, pesoPendente, pesoLote) {
             let pctFormatado = "0%";
             if (porcentagem > 0) {
                 if (porcentagem < 1) {
                     pctFormatado = porcentagem.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 2 }) + "%";
                 } else {
-                    pctFormatado = porcentagem.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 1 }) + "%";
+                    pctFormatado = Math.round(porcentagem) + "%";
                 }
             }
 
@@ -397,7 +421,7 @@
             let truckTextShadow = document.getElementById('truck-text-shadow');
             truckTextShadow.textContent = pctFormatado;
             
-            document.getElementById('details').innerText = "Falta separar: " + pesoPendente.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + " Kg de " + pesoTotal.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + " Kg.";
+            document.getElementById('details').innerText = "Falta separar: " + pesoPendente.toLocaleString('pt-BR', {minimumFractionDigits: 0, maximumFractionDigits: 2}) + " Kg de " + pesoLote.toLocaleString('pt-BR', {minimumFractionDigits: 0, maximumFractionDigits: 2}) + " Kg definido no lote.";
             
             let barra = document.getElementById('bar');
             barra.style.width = porcentagem + "%";
