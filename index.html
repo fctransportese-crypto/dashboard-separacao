@@ -59,9 +59,10 @@
         }
         .card-burndown {
             grid-column: span 2;
-            min-height: 220px;
-            padding: 15px;
+            min-height: 250px;
+            padding: 20px;
             border-bottom: 4px solid #38bdf8;
+            position: relative;
         }
         .valor {
             font-size: 26px;
@@ -71,9 +72,9 @@
             margin-top: 5px;
         }
         .titulo-card {
-            font-size: 14px;
-            color: #94a3b8;
-            font-weight: 500;
+            font-size: 15px;
+            color: #38bdf8;
+            font-weight: bold;
             margin-bottom: 5px;
         }
 
@@ -101,10 +102,36 @@
             color: #38bdf8;
         }
 
+        /* Estilo da Porcentagem Gigante no Burndown */
+        .pct-gigante {
+            font-size: 42px;
+            font-weight: 900;
+            color: #f8fafc;
+            margin: 10px 0;
+            text-shadow: 0px 2px 4px rgba(0,0,0,0.5);
+        }
+
+        /* Barra de Progresso Visual */
+        .progress-bar-wrapper {
+            width: 80%;
+            margin: 0 auto 10px auto;
+            background-color: #334155;
+            border-radius: 10px;
+            height: 12px;
+            overflow: hidden;
+        }
+        .progress-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #ef4444, #f59e0b, #10b981);
+            width: 100%;
+            border-radius: 10px;
+            transition: width 0.8s ease-in-out;
+        }
+
         #details {
             font-size: 13px;
             color: #94a3b8;
-            margin-top: 8px;
+            margin-bottom: 15px;
         }
     </style>
 </head>
@@ -120,33 +147,41 @@
     <!-- CARDS SUPERIORES -->
     <div class="grid-stats">
         <div class="card">
-            <div class="titulo-card">Peso Total</div>
+            <div class="titulo-card" style="color: #94a3b8; font-weight: 500;">Peso Total (Geral)</div>
             <span id="txt-peso" class="valor">0 Kg</span>
         </div>
         <div class="card">
-            <div class="titulo-card">Total Cargas</div>
+            <div class="titulo-card" style="color: #94a3b8; font-weight: 500;">Total Cargas (Geral)</div>
             <span id="txt-cargas" class="valor">0</span>
         </div>
         <div class="card">
-            <div class="titulo-card">Tempo Médio Equipe</div>
+            <div class="titulo-card" style="color: #94a3b8; font-weight: 500;">Tempo Médio Equipe</div>
             <span id="txt-tempo" class="valor">0 min</span>
         </div>
 
-        <!-- CARD DO GRÁFICO DE BURNDOWN -->
+        <!-- CARD DO GRÁFICO DE BURNDOWN (INTUITIVO) -->
         <div class="card card-burndown">
-            <div class="titulo-card" style="color: #38bdf8; font-weight: bold; font-size: 16px; margin-bottom: 5px;">
-                Gráfico de Burndown (Progresso do Lote)
+            <div class="titulo-card">Progresso da Separação do Lote (L. 600+)</div>
+            
+            <!-- Indicadores Visuais Espelhados da Animação Antiga -->
+            <div class="pct-gigante" id="pct-texto">100%</div>
+            
+            <div class="progress-bar-wrapper">
+                <div class="progress-bar-fill" id="pct-barra"></div>
             </div>
-            <div style="height: 170px; position: relative; width: 100%;">
+            
+            <p id="details">A carregar informações...</p>
+
+            <!-- Área do Gráfico de Linha -->
+            <div style="height: 180px; position: relative; width: 100%; margin-top: 10px;">
                 <canvas id="graficoBurndown"></canvas>
             </div>
-            <p id="details">A carregar informações...</p>
         </div>
     </div>
 
     <!-- SEÇÃO: GRÁFICO DE TENDÊNCIA E PREVISÃO -->
     <div class="container-grafico" style="height: 250px;">
-        <div class="titulo-card" style="text-align: center; font-size: 16px; color: #38bdf8; margin-bottom: 10px;">
+        <div class="titulo-card" style="text-align: center; margin-bottom: 10px;">
             Tendência e Previsão de Tempo Médio (Anual)
         </div>
         <div style="height: 190px; position: relative;">
@@ -169,7 +204,6 @@
         const webAppUrl = 'https://script.google.com/macros/s/AKfycbybu_SnLR1fE17ixG6gMjf1ykZJ1NTdWVh5_W0wSo4GIEa_j7loC8jXcjhNA631-U6E/exec?api=true';
         const urlCSV = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSL3CqlLCDtDL86CTEbVn0xWs1CmiG8cRY2sje9c9sqy8z4SMj3Fhqh_od5rte0yNP6fxPYB4VoFZwX/pub?gid=0&single=true&output=csv';
 
-        // Trata conversão de números (ponto e vírgula)
         function parseNumero(valor) {
             if (typeof valor === 'number') return valor;
             if (!valor) return 0;
@@ -183,7 +217,18 @@
             return isNaN(n) ? 0 : n;
         }
 
-        // Extrai a hora numérica de forma hiper-resistente a variações de texto
+        function normalizarData(dataStr) {
+            if (!dataStr) return '';
+            let str = String(dataStr).trim();
+            if (str.includes('T')) str = str.split('T')[0];
+            let partes = str.split(/[-/]/);
+            if (partes.length === 3) {
+                if (partes[0].length === 4) return `${partes[0]}-${partes[1].padStart(2,'0')}-${partes[2].padStart(2,'0')}`;
+                if (partes[2].length === 4) return `${partes[2]}-${partes[1].padStart(2,'0')}-${partes[0].padStart(2,'0')}`;
+            }
+            return str;
+        }
+
         function extrairHoraNumerica(horarioStr) {
             if (!horarioStr) return null;
             let str = String(horarioStr).trim().toLowerCase();
@@ -200,20 +245,20 @@
         async function atualizarDados() {
             let dadosApiAppsScript = null;
 
-            // Tenta consultar Apps Script com Timeout
+            // 1. Tentativa Rápida na API (se falhar pelo CORS, não trava o site)
             try {
                 const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 3000);
+                const timeoutId = setTimeout(() => controller.abort(), 2000);
                 const response = await fetch(webAppUrl, { signal: controller.signal });
                 clearTimeout(timeoutId);
                 if (response.ok) {
                     dadosApiAppsScript = await response.json();
                 }
             } catch (e) {
-                console.warn("API AppsScript indisponível, chaveando para processamento nativo via CSV.");
+                console.warn("API indisponível (CORS/Timeout). Acionando redundância nativa via CSV.");
             }
 
-            // Lê a planilha publicada via CSV
+            // 2. Leitura Completa via CSV (Garante que os dados sempre apareçam)
             try {
                 const res = await fetch(urlCSV + '&_t=' + Date.now());
                 const data = await res.text();
@@ -229,9 +274,23 @@
                         const mesesHistoricos = Array(12).fill(null).map(() => ({ totalTempo: 0, contagem: 0 }));
 
                         let rowsProcessed = [];
-                        let pesoLoteFallback = 0;
-                        let pesoPendenteFallback = 0;
+                        
+                        // Variáveis de Redundância para o Lote Diário
+                        let dataMaisRecente = "";
+                        let pesoPendenteRedundancia = 0;
+                        let pesoConcluidoHojeRedundancia = 0;
 
+                        // Passo A: Identificar a data mais recente com movimentação na planilha
+                        results.data.forEach(r => {
+                            let keys = Object.keys(r);
+                            let colData = keys.find(k => k.toLowerCase().includes('data'));
+                            let dataStr = r[colData] ? normalizarData(r[colData]) : '';
+                            if (dataStr && dataStr > dataMaisRecente) {
+                                dataMaisRecente = dataStr;
+                            }
+                        });
+
+                        // Passo B: Processar todos os dados
                         results.data.forEach(r => {
                             let keys = Object.keys(r);
                             let colResp = keys.find(k => k.toLowerCase().includes('respons') || k.toLowerCase().includes('nome') || k.toLowerCase().includes('separador'));
@@ -242,7 +301,7 @@
 
                             let resp = r[colResp] ? String(r[colResp]).trim() : '';
                             let peso = parseNumero(r[colPeso]);
-                            let dataStr = r[colData] ? String(r[colData]).trim() : '';
+                            let dataStr = r[colData] ? normalizarData(r[colData]) : '';
                             let temFim = r[colFim] && String(r[colFim]).trim() !== '';
 
                             if (peso <= 0) return;
@@ -250,19 +309,19 @@
 
                             let horaFimNum = extrairHoraNumerica(r[colFim]);
 
-                            rowsProcessed.push({
-                                resp: resp,
-                                peso: peso,
-                                temFim: temFim,
-                                horaFimNum: horaFimNum
-                            });
+                            rowsProcessed.push({ resp: resp, peso: peso, temFim: temFim, horaFimNum: horaFimNum, data: dataStr });
 
-                            // Fallback de cálculo de Lote Nativo
-                            pesoLoteFallback += peso;
+                            // LÓGICA DE REDUNDÂNCIA DO LOTE (Cálculo Fiel sem API)
+                            // Soma todos os itens pendentes da planilha inteira
                             if (!resp || !temFim) {
-                                pesoPendenteFallback += peso;
+                                pesoPendenteRedundancia += peso;
+                            } 
+                            // Soma todos os itens finalizados EXATAMENTE HOJE (na data mais recente)
+                            else if (dataStr === dataMaisRecente) {
+                                pesoConcluidoHojeRedundancia += peso;
                             }
 
+                            // Cálculos Gerais (Tempo, Desempenho)
                             if (resp && temFim) {
                                 let inicio = new Date('1970-01-01T' + (r[colIni] || '00:00:00'));
                                 let fim = new Date('1970-01-01T' + (r[colFim] || '00:00:00'));
@@ -276,7 +335,7 @@
                                     tempoTotalGeral += duracao;
 
                                     if (dataStr) {
-                                        let d = new Date(dataStr);
+                                        let d = new Date(dataStr + 'T12:00:00');
                                         if (!isNaN(d.getTime())) {
                                             let m = d.getMonth();
                                             mesesHistoricos[m].totalTempo += duracao;
@@ -287,54 +346,77 @@
                             }
                         });
 
-                        // Atualiza indicadores superiores
+                        // Atualiza Indicadores Superiores
                         document.getElementById('txt-peso').innerText = totalPesoGeral.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + " Kg";
                         document.getElementById('txt-cargas').innerText = contagem;
                         let mediaGeral = contagem > 0 ? (tempoTotalGeral / contagem) : 0;
                         document.getElementById('txt-tempo').innerText = mediaGeral.toFixed(1) + " min";
 
-                        // Define os pesos principais (API ou Redundância CSV)
-                        let pesoTotalLote = (dadosApiAppsScript && dadosApiAppsScript.pesoTotal) ? dadosApiAppsScript.pesoTotal : pesoLoteFallback;
-                        let pesoPendenteLote = (dadosApiAppsScript && dadosApiAppsScript.pesoPendente) ? dadosApiAppsScript.pesoPendente : pesoPendenteFallback;
+                        // ==== DEFINIÇÃO FINAL DO LOTE (API vs Redundância) ====
+                        // O peso total do lote é = O que ainda falta + O que já foi feito hoje
+                        let pesoTotalFallback = pesoPendenteRedundancia + pesoConcluidoHojeRedundancia;
+                        
+                        let pesoTotalLote = (dadosApiAppsScript && dadosApiAppsScript.pesoTotal) ? dadosApiAppsScript.pesoTotal : pesoTotalFallback;
+                        let pesoPendenteLote = (dadosApiAppsScript && dadosApiAppsScript.pesoPendente) ? dadosApiAppsScript.pesoPendente : pesoPendenteRedundancia;
+
+                        // Calcula a porcentagem pendente
+                        let pctPendente = pesoTotalLote > 0 ? Math.round((pesoPendenteLote / pesoTotalLote) * 100) : 0;
+                        pctPendente = Math.max(0, Math.min(100, pctPendente));
+
+                        // Atualiza a Interface do Card Burndown
+                        document.getElementById('pct-texto').innerText = pctPendente + "%";
+                        document.getElementById('pct-barra').style.width = pctPendente + "%";
+                        
+                        // Formatação de cores do progresso
+                        let barra = document.getElementById('pct-barra');
+                        let txtPct = document.getElementById('pct-texto');
+                        if (pctPendente === 0) {
+                            barra.style.background = "#10b981"; // Verde
+                            txtPct.style.color = "#10b981";
+                        } else if (pctPendente <= 30) {
+                            barra.style.background = "linear-gradient(90deg, #f59e0b, #10b981)";
+                            txtPct.style.color = "#f59e0b"; // Amarelo
+                        } else {
+                            barra.style.background = "linear-gradient(90deg, #ef4444, #f59e0b)";
+                            txtPct.style.color = "#ef4444"; // Vermelho
+                        }
 
                         document.getElementById('details').innerText = "Falta separar: " + Math.round(pesoPendenteLote).toLocaleString('pt-BR') + " kg de " + Math.round(pesoTotalLote).toLocaleString('pt-BR') + " kg definidos no lote.";
 
-                        // RENDERIZA BURNDOWN
-                        desenharBurndown(pesoTotalLote, rowsProcessed);
-
+                        // RENDERIZA OS GRÁFICOS
+                        desenharBurndown(pesoTotalLote, rowsProcessed, dataMaisRecente);
                         atualizarTabela(tempoPorResp, contagemPorResp);
                         desenharGrafico(pesoPorResp);
                         gerarGraficoTendencia(mesesHistoricos);
                     }
                 });
             } catch (err) {
-                console.error("Erro na atualização:", err);
+                console.error("Erro na atualização via CSV:", err);
             }
         }
 
-        // DESENHO DO GRÁFICO DE BURNDOWN ROBUSTO
-        function desenharBurndown(pesoTotal, rowsProcessed) {
+        // DESENHO DO GRÁFICO DE BURNDOWN (INTUITIVO E ROBUSTO)
+        function desenharBurndown(pesoTotal, rowsProcessed, dataMaisRecente) {
             const horasLabels = ['07:00', '09:00', '11:00', '13:00', '15:00', '17:00', '18:00'];
             const benchmarks = [7, 9, 11, 13, 15, 17, 18];
             const numPontos = horasLabels.length;
 
-            // 1. Linha da Meta Ideal (Redução constante)
+            // 1. Linha da Meta Ideal (Decrescente e tracejada)
             let dadosIdeais = [];
             for (let i = 0; i < numPontos; i++) {
                 let val = pesoTotal - (pesoTotal * (i / (numPontos - 1)));
                 dadosIdeais.push(Math.max(0, Math.round(val)));
             }
 
-            // 2. Linha Real do Burndown
+            // 2. Linha Real (O que já foi feito HOJE)
             let pesoConcluidoAteHora = Array(numPontos).fill(0);
-            let horaAtual = new Date().getHours();
+            let dataAtualJS = new Date();
+            let horaAtual = dataAtualJS.getHours();
 
             rowsProcessed.forEach(r => {
-                if (r.resp && r.temFim) {
-                    let hNum = r.horaFimNum;
-                    
-                    // Se a carga foi finalizada mas o horário veio em branco/inválido, usa a hora atual
-                    if (hNum === null) hNum = horaAtual;
+                // Filtra apenas o que foi finalizado na data da operação do lote
+                if (r.resp && r.temFim && r.data === dataMaisRecente) {
+                    let hNum = r.horaFimNum !== null ? r.horaFimNum : horaAtual;
 
                     benchmarks.forEach((bHora, idx) => {
                         if (hNum <= bHora) {
@@ -346,9 +428,9 @@
 
             let dadosReais = [];
             for (let i = 0; i < numPontos; i++) {
-                // Para pontos futuros no tempo, não plota para manter a linha realista até o momento atual
+                // Previne que a linha avance pelo gráfico para horas que ainda não aconteceram
                 if (benchmarks[i] > horaAtual + 1 && i > 0 && dadosReais[i-1] !== null) {
-                    dadosReais.push(null);
+                    dadosReais.push(null); 
                 } else {
                     let restante = pesoTotal - pesoConcluidoAteHora[i];
                     dadosReais.push(Math.max(0, Math.round(restante)));
@@ -364,25 +446,28 @@
                     labels: horasLabels,
                     datasets: [
                         {
+                            label: 'Carga Pendente (Real)',
+                            data: dadosReais,
+                            borderColor: '#38bdf8', // Azul claro
+                            backgroundColor: 'rgba(56, 189, 248, 0.15)',
+                            borderWidth: 3,
+                            pointRadius: 5,
+                            pointHoverRadius: 7,
+                            pointBackgroundColor: '#fff',
+                            spanGaps: true,
+                            fill: true,
+                            tension: 0.1,
+                            order: 1
+                        },
+                        {
                             label: 'Meta Ideal',
                             data: dadosIdeais,
-                            borderColor: '#ef4444',
+                            borderColor: 'rgba(239, 68, 68, 0.6)', // Vermelho translúcido
                             borderDash: [5, 5],
                             borderWidth: 2,
                             pointRadius: 0,
-                            fill: false
-                        },
-                        {
-                            label: 'Carga Pendente Real',
-                            data: dadosReais,
-                            borderColor: '#38bdf8',
-                            backgroundColor: 'rgba(56, 189, 248, 0.15)',
-                            borderWidth: 3,
-                            pointRadius: 4,
-                            pointHoverRadius: 6,
-                            spanGaps: true,
-                            fill: true,
-                            tension: 0.2
+                            fill: false,
+                            order: 2
                         }
                     ]
                 },
@@ -390,22 +475,18 @@
                     responsive: true,
                     maintainAspectRatio: false,
                     plugins: {
-                        legend: {
-                            display: true,
-                            position: 'top',
-                            labels: { color: '#94a3b8', font: { size: 10 }, boxWidth: 12 }
+                        legend: { display: true, position: 'top', labels: { color: '#94a3b8', boxWidth: 12 } },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return context.dataset.label + ': ' + context.parsed.y.toLocaleString('pt-BR') + ' Kg';
+                                }
+                            }
                         }
                     },
                     scales: {
-                        x: {
-                            grid: { color: '#334155', display: false },
-                            ticks: { color: '#94a3b8', font: { size: 10 } }
-                        },
-                        y: {
-                            grid: { color: '#334155' },
-                            ticks: { color: '#94a3b8', font: { size: 10 } },
-                            min: 0
-                        }
+                        x: { grid: { color: '#334155', display: false }, ticks: { color: '#94a3b8' } },
+                        y: { grid: { color: '#334155' }, ticks: { color: '#94a3b8' }, min: 0 }
                     }
                 }
             });
@@ -496,7 +577,7 @@
 
         window.onload = function() {
             atualizarDados();
-            setInterval(atualizarDados, 10000); // Atualiza a cada 10 segundos em tempo real
+            setInterval(atualizarDados, 15000); // Atualiza em tempo real a cada 15 segundos
         };
     </script>
 </body>
