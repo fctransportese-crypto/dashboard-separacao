@@ -2,22 +2,98 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Painel Andon - Performance Logística</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;700;900&display=swap" rel="stylesheet">
+    
     <style>
-        body { font-family: 'Segoe UI', sans-serif; background: #0f172a; color: #f8fafc; margin: 0; padding: 20px; }
+        body { font-family: 'Segoe UI', 'Roboto', sans-serif; background: #0f172a; color: #f8fafc; margin: 0; padding: 20px; }
         h1 { text-align: center; color: #38bdf8; margin-bottom: 20px; }
+        
         .filtros { background: #1e293b; padding: 15px; border-radius: 12px; margin-bottom: 20px; text-align: center; }
-        .grid-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px; margin-bottom: 30px; }
+        .filtros input { background: #0f172a; color: #fff; border: 1px solid #334155; padding: 5px 10px; border-radius: 6px; }
+
+        .grid-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 25px; }
         .card { background: #1e293b; padding: 20px; border-radius: 12px; border-bottom: 4px solid #38bdf8; text-align: center; display: flex; flex-direction: column; justify-content: center; }
-        .card-grafico { grid-column: span 2; min-height: 180px; }
+        .card-caminhao { grid-column: span 2; min-height: 220px; padding: 15px; border-bottom: 4px solid #38bdf8; }
         .valor { font-size: 24px; font-weight: bold; display: block; color: #fff; margin-top: 5px; }
-        .container-grafico { background: #1e293b; padding: 20px; border-radius: 12px; margin-bottom: 20px; height: 350px; }
+        .titulo-card { font-size: 14px; color: #94a3b8; font-weight: 500; margin-bottom: 5px; }
+
+        .container-grafico { background: #1e293b; padding: 20px; border-radius: 12px; margin-bottom: 20px; }
+        
         table { width: 100%; border-collapse: collapse; background: #1e293b; border-radius: 12px; overflow: hidden; margin-top: 20px; }
         th, td { padding: 12px; text-align: left; border-bottom: 1px solid #334155; }
         th { color: #38bdf8; }
-        .titulo-card-meta { font-size: 14px; color: #94a3b8; font-weight: 500; margin-bottom: 5px; }
+
+        /* Estilos do Animação do Caminhão */
+        .truck-container {
+            position: relative;
+            width: 100%;
+            height: 120px;
+            background-color: #0f172a;
+            border-radius: 8px;
+            overflow: hidden;
+            margin: 10px 0;
+            box-shadow: inset 0 2px 5px rgba(0,0,0,0.5);
+        }
+        .road-line {
+            position: absolute;
+            bottom: 12px;
+            width: 200%;
+            height: 3px;
+            background: repeating-linear-gradient(90deg, #475569, #475569 15px, transparent 15px, transparent 30px);
+        }
+        .truck {
+            position: absolute;
+            bottom: 14px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 180px;
+            height: auto;
+        }
+        .percentage-display { font-size: 26px; font-weight: bold; color: #38bdf8; margin: 2px 0; }
+        .progress-bar-container { width: 100%; background-color: #334155; border-radius: 10px; height: 10px; overflow: hidden; margin-bottom: 8px; }
+        .progress-bar { height: 100%; background: linear-gradient(90deg, #f44336, #ff9800); width: 100%; border-radius: 10px; transition: width 0.8s ease-in-out; }
+        .truck-inner-text { font-size: 9px; font-family: 'Roboto', sans-serif; font-weight: bold; text-anchor: middle; dominant-baseline: middle; pointer-events: none; }
+        #details { font-size: 11px; color: #94a3b8; margin: 0; }
+
+        /* Animações CSS do Caminhão e Trabalhadores */
+        @keyframes waveMove { 0% { transform: translateX(0); } 100% { transform: translateX(-50px); } }
+        .arm-throw { animation: armThrow 2s ease-in-out infinite; transform-origin: 11.5px 31.5px; }
+        .arm-arrange { animation: armArrange 2s ease-in-out infinite; transform-origin: -0.5px 48.5px; }
+        .arm-stack { animation: armStack 1s linear infinite; transform-origin: 23.5px 48.5px; }
+        .falling-box { animation: dropBox 2s linear infinite; transform-origin: center; transform-box: fill-box; }
+        
+        .b1, .b2, .b3, .b4, .b5, .b6, .b7, .b8, .b9, .b10 { animation-duration: 20s; animation-iteration-count: infinite; }
+        .b1  { animation-name: stage1; } .b2  { animation-name: stage2; } .b3  { animation-name: stage3; }
+        .b4  { animation-name: stage4; } .b5  { animation-name: stage5; } .b6  { animation-name: stage6; }
+        .b7  { animation-name: stage7; } .b8  { animation-name: stage8; } .b9  { animation-name: stage9; }
+        .b10 { animation-name: stage10; }
+
+        @keyframes stage1  { 0%, 6% { opacity: 0; } 6.1%, 100% { opacity: 1; } }
+        @keyframes stage2  { 0%, 16% { opacity: 0; } 16.1%, 100% { opacity: 1; } }
+        @keyframes stage3  { 0%, 26% { opacity: 0; } 26.1%, 100% { opacity: 1; } }
+        @keyframes stage4  { 0%, 36% { opacity: 0; } 36.1%, 100% { opacity: 1; } }
+        @keyframes stage5  { 0%, 46% { opacity: 0; } 46.1%, 100% { opacity: 1; } }
+        @keyframes stage6  { 0%, 56% { opacity: 0; } 56.1%, 100% { opacity: 1; } }
+        @keyframes stage7  { 0%, 66% { opacity: 0; } 66.1%, 100% { opacity: 1; } }
+        @keyframes stage8  { 0%, 76% { opacity: 0; } 76.1%, 100% { opacity: 1; } }
+        @keyframes stage9  { 0%, 86% { opacity: 0; } 86.1%, 100% { opacity: 1; } }
+        @keyframes stage10 { 0%, 96% { opacity: 0; } 96.1%, 100% { opacity: 1; } }
+
+        .speech-bubble { opacity: 0; animation: talk 4s infinite; }
+        .talking-arm { animation: armTalk 0.6s infinite alternate ease-in-out; }
+        .talking-arm-2 { animation: armTalk2 0.6s infinite alternate ease-in-out; animation-delay: 0.3s; }
+
+        @keyframes armThrow { 0%, 100% { transform: rotate(0deg); } 15% { transform: rotate(-50deg); } 30% { transform: rotate(20deg); } 50% { transform: rotate(0deg); } }
+        @keyframes armArrange { 0%, 100% { transform: rotate(0deg); } 50% { transform: rotate(0deg); } 65% { transform: rotate(-30deg); } 80% { transform: rotate(10deg); } }
+        @keyframes armStack { 0%, 100% { transform: rotate(10deg); } 50% { transform: rotate(-60deg); } }
+        @keyframes dropBox { 0%, 10% { transform: translate(0, 0) rotate(0deg); opacity: 0; } 15% { transform: translate(0, 0) rotate(0deg); opacity: 1; } 30% { transform: translate(-3px, -4px) rotate(-30deg); opacity: 1; } 60% { transform: translate(-6.5px, 22px) rotate(-90deg); opacity: 1; } 70%, 100% { transform: translate(-6.5px, 22px) rotate(-90deg); opacity: 0; } }
+        @keyframes talk { 0%, 10%, 100% { opacity: 0; transform: translateY(2px); } 20%, 90% { opacity: 1; transform: translateY(0); } }
+        @keyframes armTalk { 0% { transform: rotate(0deg); } 100% { transform: rotate(-25deg); } }
+        @keyframes armTalk2 { 0% { transform: rotate(0deg); } 100% { transform: rotate(25deg); } }
     </style>
 </head>
 <body>
@@ -29,22 +105,170 @@
         até <input type="date" id="data-fim" onchange="atualizarDados()">
     </div>
 
+    <!-- CARDS SUPERIORES DE INDICADORES -->
     <div class="grid-stats">
         <div class="card">Peso Total<span id="txt-peso" class="valor">0 Kg</span></div>
         <div class="card">Total Cargas<span id="txt-cargas" class="valor">0</span></div>
         <div class="card">Tempo Médio Equipe<span id="txt-tempo" class="valor">0 min</span></div>
-        <div class="card card-grafico" id="card-meta">
-            <div class="titulo-card-meta">Tendência e Previsão de Tempo Médio (Anual)</div>
-            <div style="flex-grow: 1; height: 130px; position: relative;">
-                <canvas id="graficoTendencia"></canvas>
+
+        <!-- CARD DO CAMINHÃO (ANIMADO) -->
+        <div class="card card-caminhao">
+            <div class="titulo-card">Progresso de Carga Pendente</div>
+            
+            <div class="truck-container">
+                <div class="road-line" id="road"></div>
+                
+                <svg class="truck" id="truck" viewBox="-20 0 140 60">
+                    <defs>
+                        <clipPath id="cargo-clip">
+                            <rect x="15" y="10" width="60" height="40" rx="2" />
+                        </clipPath>
+                    </defs>
+
+                    <!-- Escapamento -->
+                    <rect x="72" y="15" width="3" height="35" fill="#9e9e9e" />
+                    <polygon points="71,15 76,15 74,10" fill="#757575" />
+
+                    <!-- Cabine Principal -->
+                    <path d="M75,18 L92,18 C95,18 97,20 98,23 L105,35 L110,35 C112,35 113,37 113,40 L113,48 C113,49 112,50 111,50 L75,50 Z" fill="#1a73e8" />
+                    <path d="M102,46 L113,46 L113,50 L102,50 Z" fill="#333" />
+                    <line x1="107" y1="38" x2="112" y2="38" stroke="#ccc" stroke-width="1" />
+                    <line x1="108" y1="40" x2="112" y2="40" stroke="#ccc" stroke-width="1" />
+                    <line x1="108" y1="42" x2="112" y2="42" stroke="#ccc" stroke-width="1" />
+                    <rect x="110" y="44" width="3" height="2" fill="#ffeb3b" />
+                    <path d="M80,21 L90,21 C92,21 93,22 94,24 L100,34 L80,34 Z" fill="#e8f0fe" />
+                    <rect x="80" y="38" width="4" height="1.5" fill="#cfd8dc" rx="0.5" />
+                    <text x="90" y="45" font-family="'Roboto', sans-serif" font-weight="900" font-size="11" fill="#ffffff" text-anchor="middle">FC</text>
+
+                    <!-- Baú -->
+                    <rect x="71" y="42" width="4" height="4" fill="#333" />
+                    <rect x="15" y="10" width="60" height="40" fill="#e0e0e0" rx="2" />
+
+                    <!-- Líquido de Progresso -->
+                    <g clip-path="url(#cargo-clip)">
+                        <g id="liquid-container" transform="translate(0, 50)">
+                            <path id="liquid-wave" d="M 0 0 Q 12.5 -3, 25 0 T 50 0 T 75 0 T 100 0 T 125 0 T 150 0 L 150 50 L 0 50 Z" fill="#f44336" style="animation: waveMove 1.5s linear infinite;" />
+                        </g>
+                    </g>
+
+                    <rect x="15" y="10" width="60" height="40" fill="none" stroke="#424242" stroke-width="2" rx="2" />
+                    <rect x="16" y="46" width="58" height="2" fill="#f44336" />
+                    <rect x="16" y="46" width="10" height="2" fill="#ffffff" />
+                    <rect x="36" y="46" width="10" height="2" fill="#ffffff" />
+                    <rect x="56" y="46" width="10" height="2" fill="#ffffff" />
+                    
+                    <line x1="25" y1="10" x2="25" y2="46" stroke="#424242" stroke-width="1.5" opacity="0.3"/>
+                    <line x1="35" y1="10" x2="35" y2="46" stroke="#424242" stroke-width="1.5" opacity="0.3"/>
+                    <line x1="45" y1="10" x2="45" y2="46" stroke="#424242" stroke-width="1.5" opacity="0.3"/>
+                    <line x1="55" y1="10" x2="55" y2="46" stroke="#424242" stroke-width="1.5" opacity="0.3"/>
+                    <line x1="65" y1="10" x2="65" y2="46" stroke="#424242" stroke-width="1.5" opacity="0.3"/>
+
+                    <text id="truck-text-shadow" class="truck-inner-text" x="45" y="28" fill="#202124" opacity="0.9">100%</text>
+
+                    <!-- Cena 1: Trabalhando -->
+                    <g id="workers-working">
+                        <rect x="2" y="54" width="4" height="4" fill="#8d6e63" rx="0.5"/>
+                        <rect x="7" y="54" width="4" height="4" fill="#795548" rx="0.5"/>
+                        <rect x="4.5" y="50" width="4" height="4" fill="#a1887f" rx="0.5"/>
+
+                        <rect class="b1" x="-6.5" y="54" width="4" height="4" fill="#a1887f" rx="0.5"/>
+                        <rect class="b2" x="-10.5" y="54" width="4" height="4" fill="#8d6e63" rx="0.5"/>
+                        <rect class="b3" x="-14.5" y="54" width="4" height="4" fill="#795548" rx="0.5"/>
+                        <rect class="b4" x="-18.5" y="54" width="4" height="4" fill="#a1887f" rx="0.5"/>
+                        <rect class="b5" x="-8.5" y="50" width="4" height="4" fill="#8d6e63" rx="0.5"/>
+                        <rect class="b6" x="-12.5" y="50" width="4" height="4" fill="#795548" rx="0.5"/>
+                        <rect class="b7" x="-16.5" y="50" width="4" height="4" fill="#a1887f" rx="0.5"/>
+                        <rect class="b8" x="-10.5" y="46" width="4" height="4" fill="#8d6e63" rx="0.5"/>
+                        <rect class="b9" x="-14.5" y="46" width="4" height="4" fill="#795548" rx="0.5"/>
+                        <rect class="b10" x="-12.5" y="42" width="4" height="4" fill="#a1887f" rx="0.5"/>
+
+                        <path d="M -2.5 44.5 A 2 2 0 0 1 1.5 44.5 Z" fill="#ff9800"/>
+                        <circle cx="-0.5" cy="46" r="1.5" fill="#ffccbc" /> 
+                        <line x1="-0.5" y1="47.5" x2="-0.5" y2="53" stroke="#212121" stroke-width="1.5" stroke-linecap="round"/>
+                        <path d="M -0.5 53 L -2.5 58 M -0.5 53 L 1.5 58" stroke="#212121" stroke-width="1.5" stroke-linecap="round"/> 
+                        <line x1="-0.5" y1="48.5" x2="2.5" y2="51" stroke="#212121" stroke-width="1.5" stroke-linecap="round"/>
+                        <line class="arm-arrange" x1="-0.5" y1="48.5" x2="3" y2="49" stroke="#212121" stroke-width="1.5" stroke-linecap="round"/>
+
+                        <path d="M 9.5 27.5 A 2 2 0 0 1 13.5 27.5 Z" fill="#ff9800"/> 
+                        <circle cx="11.5" cy="29" r="1.5" fill="#ffccbc" />
+                        <line x1="11.5" y1="30.5" x2="11.5" y2="38" stroke="#212121" stroke-width="1.5" stroke-linecap="round"/>
+                        <path d="M 11.5 38 L 9.5 45 M 11.5 38 L 13.5 45" stroke="#212121" stroke-width="1.5" stroke-linecap="round"/>
+                        <line x1="11.5" y1="31.5" x2="8.5" y2="33" stroke="#212121" stroke-width="1.5" stroke-linecap="round"/> 
+                        <line class="arm-throw" x1="11.5" y1="31.5" x2="7.5" y2="30" stroke="#212121" stroke-width="1.5" stroke-linecap="round"/> 
+
+                        <rect class="falling-box" x="6" y="28" width="4" height="4" fill="#8d6e63" rx="0.5"/>
+
+                        <path d="M 21.5 44.5 A 2 2 0 0 1 25.5 44.5 Z" fill="#ff9800"/>
+                        <circle cx="23.5" cy="46" r="1.5" fill="#ffccbc" />
+                        <line x1="23.5" y1="47.5" x2="23.5" y2="53" stroke="#212121" stroke-width="1.5" stroke-linecap="round"/>
+                        <path d="M 23.5 53 L 21.5 58 M 23.5 53 L 25.5 58" stroke="#212121" stroke-width="1.5" stroke-linecap="round"/>
+                        <line x1="23.5" y1="48.5" x2="21.5" y2="51" stroke="#212121" stroke-width="1.5" stroke-linecap="round"/>
+                        <line class="arm-stack" x1="23.5" y1="48.5" x2="27" y2="49" stroke="#212121" stroke-width="1.5" stroke-linecap="round"/>
+                    </g>
+
+                    <!-- Cena 2: Descansando -->
+                    <g id="workers-resting" style="display: none;">
+                        <rect x="-4" y="54" width="6" height="4" fill="#8d6e63" rx="1"/>
+                        <rect x="9" y="54" width="6" height="4" fill="#795548" rx="1"/>
+                        <rect x="22" y="54" width="6" height="4" fill="#a1887f" rx="1"/>
+
+                        <path d="M -2.5 46.5 A 2 2 0 0 1 1.5 46.5 Z" fill="#ff9800"/>
+                        <circle cx="-0.5" cy="48" r="1.5" fill="#ffccbc" />
+                        <line x1="-0.5" y1="49.5" x2="-0.5" y2="54" stroke="#212121" stroke-width="1.5" stroke-linecap="round"/>
+                        <path d="M -0.5 54 L 2 54 L 2 58" stroke="#212121" stroke-width="1.5" stroke-linecap="round"/>
+                        <line class="talking-arm" x1="-0.5" y1="50.5" x2="2" y2="49" stroke="#212121" stroke-width="1.5" stroke-linecap="round" style="transform-origin: -0.5px 50.5px;"/>
+
+                        <path d="M 10.5 46.5 A 2 2 0 0 0 14.5 46.5 Z" fill="#ff9800"/>
+                        <circle cx="12.5" cy="48" r="1.5" fill="#ffccbc" />
+                        <line x1="12.5" y1="49.5" x2="12.5" y2="54" stroke="#212121" stroke-width="1.5" stroke-linecap="round"/>
+                        <path d="M 12.5 54 L 10 54 L 10 58" stroke="#212121" stroke-width="1.5" stroke-linecap="round"/>
+                        <line x1="12.5" y1="50.5" x2="10" y2="52" stroke="#212121" stroke-width="1.5" stroke-linecap="round"/>
+
+                        <path d="M 23.5 46.5 A 2 2 0 0 0 27.5 46.5 Z" fill="#ff9800"/>
+                        <circle cx="25.5" cy="48" r="1.5" fill="#ffccbc" />
+                        <line x1="25.5" y1="49.5" x2="25.5" y2="54" stroke="#212121" stroke-width="1.5" stroke-linecap="round"/>
+                        <path d="M 25.5 54 L 23 54 L 23 58" stroke="#212121" stroke-width="1.5" stroke-linecap="round"/>
+                        <line class="talking-arm-2" x1="25.5" y1="50.5" x2="23" y2="49" stroke="#212121" stroke-width="1.5" stroke-linecap="round" style="transform-origin: 25.5px 50.5px;"/>
+                        
+                        <g class="speech-bubble" style="animation-delay: 0s;">
+                            <path d="M 13 41 Q 13 37 17 37 L 21 37 Q 25 37 25 41 Q 25 45 21 45 L 17 45 L 14 47 L 15 44 Q 13 43 13 41 Z" fill="#fff" stroke="#999" stroke-width="0.5"/>
+                            <text x="19" y="42.5" font-size="4" font-weight="bold" fill="#666" text-anchor="middle">...</text>
+                        </g>
+                        <g class="speech-bubble" style="animation-delay: 2s;">
+                            <path d="M -3 41 Q -3 37 1 37 L 5 37 Q 9 37 9 41 Q 9 45 5 45 L 1 45 L -2 47 L -1 44 Q -3 43 -3 41 Z" fill="#fff" stroke="#999" stroke-width="0.5"/>
+                            <text x="3" y="42.5" font-size="4" font-weight="bold" fill="#666" text-anchor="middle">...</text>
+                        </g>
+                    </g>
+
+                    <!-- Rodas -->
+                    <g class="wheel"><circle cx="25" cy="50" r="8" fill="#212121" /><circle cx="25" cy="50" r="4.5" fill="#9e9e9e" /><circle cx="25" cy="50" r="2" fill="#424242" /><line x1="25" y1="45.5" x2="25" y2="54.5" stroke="#ffffff" stroke-width="1.5" /><line x1="20.5" y1="50" x2="29.5" y2="50" stroke="#ffffff" stroke-width="1.5" /></g>
+                    <g class="wheel"><circle cx="45" cy="50" r="8" fill="#212121" /><circle cx="45" cy="50" r="4.5" fill="#9e9e9e" /><circle cx="45" cy="50" r="2" fill="#424242" /><line x1="45" y1="45.5" x2="45" y2="54.5" stroke="#ffffff" stroke-width="1.5" /><line x1="40.5" y1="50" x2="49.5" y2="50" stroke="#ffffff" stroke-width="1.5" /></g>
+                    <g class="wheel"><circle cx="95" cy="50" r="8" fill="#212121" /><circle cx="95" cy="50" r="4.5" fill="#9e9e9e" /><circle cx="95" cy="50" r="2" fill="#424242" /><line x1="95" y1="45.5" x2="95" y2="54.5" stroke="#ffffff" stroke-width="1.5" /><line x1="90.5" y1="50" x2="99.5" y2="50" stroke="#ffffff" stroke-width="1.5" /></g>
+                </svg>
             </div>
+
+            <div class="percentage-display" id="pct-text">100%</div>
+            <div class="progress-bar-container"><div class="progress-bar" id="bar"></div></div>
+            <p id="details">A calcular progresso...</p>
         </div>
     </div>
 
-    <div class="container-grafico">
+    <!-- SEÇÃO REPOSICIONADA: GRÁFICO DE TENDÊNCIA E PREVISÃO (Abaixo dos indicadores) -->
+    <div class="container-grafico" style="height: 250px;">
+        <div class="titulo-card" style="text-align: center; font-size: 16px; color: #38bdf8; margin-bottom: 10px;">
+            Tendência e Previsão de Tempo Médio (Anual)
+        </div>
+        <div style="height: 190px; position: relative;">
+            <canvas id="graficoTendencia"></canvas>
+        </div>
+    </div>
+
+    <!-- GRÁFICO DE DESEMPENHO DOS SEPARADORES -->
+    <div class="container-grafico" style="height: 320px;">
         <canvas id="graficoSeparadores"></canvas>
     </div>
 
+    <!-- TABELA DE TEMPO MÉDIO -->
     <table id="tabelaTempo">
         <thead><tr><th>Separador</th><th>Tempo Médio por Carga</th></tr></thead>
         <tbody></tbody>
@@ -55,9 +279,9 @@
 
         async function atualizarDados() {
             try {
-                // Adicionamos ?_t=timestamp para EVITAR O CACHE do navegador
-                const response = await fetch(urlCSV + '&_t=' + Date.now());
-                const data = await response.text();
+                // Parâmetro anti-cache (_t) garante atualização imediata no GitHub Pages
+                const res = await fetch(urlCSV + '&_t=' + Date.now());
+                const data = await res.text();
                 
                 const dataIni = document.getElementById('data-ini').value;
                 const dataFim = document.getElementById('data-fim').value;
@@ -65,7 +289,7 @@
                 Papa.parse(data, {
                     header: true, dynamicTyping: true, skipEmptyLines: true,
                     complete: function(results) {
-                        let totalPeso = 0, contagem = 0, tempoTotalGeral = 0;
+                        let totalPeso = 0, pesoPendente = 0, contagem = 0, tempoTotalGeral = 0;
                         let pesoPorResp = {}, tempoPorResp = {}, contagemPorResp = {};
                         
                         const mesesHistoricos = Array(12).fill(null).map(() => ({ totalTempo: 0, contagem: 0 }));
@@ -83,31 +307,43 @@
 
                             let resp = r[colResp];
                             let peso = parseFloat(String(r[colPeso] || 0).replace('.', '').replace(',', '.'));
-                            let inicio = new Date('1970-01-01T' + (r[colIni] || '00:00:00'));
-                            let fim = new Date('1970-01-01T' + (r[colFim] || '00:00:00'));
-                            let duracao = (fim - inicio) / 60000;
+                            
+                            let temFim = r[colFim] && String(r[colFim]).trim() !== '';
 
-                            if (resp && peso > 0 && duracao > 0) {
-                                pesoPorResp[resp] = (pesoPorResp[resp] || 0) + peso;
-                                tempoPorResp[resp] = (tempoPorResp[resp] || 0) + duracao;
-                                contagemPorResp[resp] = (contagemPorResp[resp] || 0) + 1;
+                            if (peso > 0) {
                                 totalPeso += peso;
-                                contagem++;
-                                tempoTotalGeral += duracao;
+                                // Se não possui responsável ou falta horário de término, considera como carga pendente
+                                if (!resp || !temFim) {
+                                    pesoPendente += peso;
+                                }
+                            }
 
-                                if (dataLinha) {
-                                    let d = new Date(dataLinha);
-                                    if (!isNaN(d.getTime())) {
-                                        let m = d.getMonth();
-                                        mesesHistoricos[m].totalTempo += duracao;
-                                        mesesHistoricos[m].contagem++;
-                                    } else {
-                                        let partes = String(dataLinha).split(/[-/]/);
-                                        if (partes.length >= 2) {
-                                            let m = parseInt(partes[1], 10) - 1;
-                                            if (m >= 0 && m <= 11) {
-                                                mesesHistoricos[m].totalTempo += duracao;
-                                                mesesHistoricos[m].contagem++;
+                            if (resp && temFim && peso > 0) {
+                                let inicio = new Date('1970-01-01T' + (r[colIni] || '00:00:00'));
+                                let fim = new Date('1970-01-01T' + (r[colFim] || '00:00:00'));
+                                let duracao = (fim - inicio) / 60000;
+
+                                if (duracao > 0) {
+                                    pesoPorResp[resp] = (pesoPorResp[resp] || 0) + peso;
+                                    tempoPorResp[resp] = (tempoPorResp[resp] || 0) + duracao;
+                                    contagemPorResp[resp] = (contagemPorResp[resp] || 0) + 1;
+                                    contagem++;
+                                    tempoTotalGeral += duracao;
+
+                                    if (dataLinha) {
+                                        let d = new Date(dataLinha);
+                                        if (!isNaN(d.getTime())) {
+                                            let m = d.getMonth();
+                                            mesesHistoricos[m].totalTempo += duracao;
+                                            mesesHistoricos[m].contagem++;
+                                        } else {
+                                            let partes = String(dataLinha).split(/[-/]/);
+                                            if (partes.length >= 2) {
+                                                let m = parseInt(partes[1], 10) - 1;
+                                                if (m >= 0 && m <= 11) {
+                                                    mesesHistoricos[m].totalTempo += duracao;
+                                                    mesesHistoricos[m].contagem++;
+                                                }
                                             }
                                         }
                                     }
@@ -120,16 +356,69 @@
                         let mediaGeral = contagem > 0 ? (tempoTotalGeral / contagem) : 0;
                         document.getElementById('txt-tempo').innerText = mediaGeral.toFixed(1) + " min";
                         
+                        // Cálculo da Porcentagem Pendente para o Caminhão
+                        let pctPendente = totalPeso > 0 ? Math.round((pesoPendente / totalPeso) * 100) : 0;
+                        pctPendente = Math.max(0, Math.min(100, pctPendente));
+
+                        renderizarCaminhao(pctPendente, pesoPendente, totalPeso);
                         atualizarTabela(tempoPorResp, contagemPorResp);
                         desenharGrafico(pesoPorResp);
                         gerarGraficoTendencia(mesesHistoricos);
                     }
                 });
             } catch (err) {
-                console.error("Erro ao buscar CSV da planilha:", err);
+                console.error("Erro ao carregar os dados:", err);
             }
         }
 
+        // Função que renderiza e anima o Caminhão SVG no card superior
+        function renderizarCaminhao(porcentagem, pesoPendente, pesoTotal) {
+            document.getElementById('pct-text').innerText = porcentagem + "%";
+            var truckTextShadow = document.getElementById('truck-text-shadow');
+            truckTextShadow.textContent = porcentagem + "%";
+            
+            document.getElementById('details').innerText = "Falta separar: " + pesoPendente.toLocaleString('pt-BR', {minimumFractionDigits: 2}) + " Kg de " + pesoTotal.toLocaleString('pt-BR', {minimumFractionDigits: 2}) + " Kg.";
+            
+            var barra = document.getElementById('bar');
+            barra.style.width = porcentagem + "%";
+            
+            var liquidContainer = document.getElementById('liquid-container');
+            var liquidWave = document.getElementById('liquid-wave');
+            
+            var alturaY = 50 - (porcentagem * 0.40);
+            liquidContainer.setAttribute('transform', 'translate(0, ' + alturaY + ')');
+            
+            var groupWorking = document.getElementById('workers-working');
+            var groupResting = document.getElementById('workers-resting');
+
+            if (porcentagem === 0) {
+                liquidWave.setAttribute('fill', '#4caf50'); 
+                truckTextShadow.setAttribute('fill', '#ffffff');
+                liquidWave.style.animation = "none"; 
+                groupWorking.style.display = "none";
+                groupResting.style.display = "block";
+            } else {
+                if (porcentagem > 60) {
+                    liquidWave.setAttribute('fill', '#f44336');
+                    barra.style.background = "linear-gradient(90deg, #f44336, #ff9800)";
+                    truckTextShadow.setAttribute('fill', '#ffffff'); 
+                } else if (porcentagem > 20) {
+                    liquidWave.setAttribute('fill', '#ff9800'); 
+                    barra.style.background = "linear-gradient(90deg, #ff9800, #ffeb3b)";
+                    truckTextShadow.setAttribute('fill', '#202124'); 
+                } else {
+                    liquidWave.setAttribute('fill', '#ffeb3b'); 
+                    barra.style.background = "linear-gradient(90deg, #ffeb3b, #4caf50)";
+                    truckTextShadow.setAttribute('fill', '#202124'); 
+                }
+
+                liquidWave.style.animation = "waveMove 1.2s linear infinite";
+                groupWorking.style.display = "block";
+                groupResting.style.display = "none";
+            }
+        }
+
+        // Gráfico de Tendência (Com Regressão Linear Simples)
         function gerarGraficoTendencia(mesesHistoricos) {
             const META_LIMITE = 30;
             const labelsMeses = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
@@ -177,61 +466,21 @@
                 data: {
                     labels: labelsMeses,
                     datasets: [
-                        {
-                            label: 'Meta',
-                            data: valoresMeta,
-                            borderColor: '#ef4444',
-                            borderWidth: 1.5,
-                            pointRadius: 0,
-                            fill: false
-                        },
-                        {
-                            label: 'Média Real',
-                            data: mediasReais,
-                            borderColor: '#38bdf8',
-                            backgroundColor: '#38bdf8',
-                            borderWidth: 3,
-                            pointRadius: 5,
-                            pointHoverRadius: 7,
-                            fill: false,
-                            tension: 0.1
-                        },
-                        {
-                            label: 'Tendência',
-                            data: valoresTendencia,
-                            borderColor: '#f59e0b',
-                            borderWidth: 2,
-                            borderDash: [5, 5],
-                            pointRadius: 0,
-                            fill: false
-                        }
+                        { label: 'Meta', data: valoresMeta, borderColor: '#ef4444', borderWidth: 1.5, pointRadius: 0, fill: false },
+                        { label: 'Média Real', data: mediasReais, borderColor: '#38bdf8', backgroundColor: '#38bdf8', borderWidth: 3, pointRadius: 5, pointHoverRadius: 7, fill: false, tension: 0.1 },
+                        { label: 'Tendência', data: valoresTendencia, borderColor: '#f59e0b', borderWidth: 2, borderDash: [5, 5], pointRadius: 0, fill: false }
                     ]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    plugins: { legend: { display: false } },
+                    plugins: { legend: { display: true, labels: { color: '#94a3b8' } } },
                     scales: {
-                        x: {
-                            grid: { color: '#334155', display: false },
-                            ticks: { color: '#94a3b8', font: { size: 9 } }
-                        },
-                        y: {
-                            grid: { color: '#334155' },
-                            ticks: { color: '#94a3b8', font: { size: 9 } },
-                            min: 0
-                        }
+                        x: { grid: { color: '#334155', display: false }, ticks: { color: '#94a3b8', font: { size: 10 } } },
+                        y: { grid: { color: '#334155' }, ticks: { color: '#94a3b8', font: { size: 10 } }, min: 0 }
                     }
                 }
             });
-
-            const card = document.getElementById('card-meta');
-            const ultimaMediaReal = yPoints[yPoints.length - 1] || 0;
-            if (ultimaMediaReal > META_LIMITE) {
-                card.style.borderBottom = "4px solid #ef4444";
-            } else {
-                card.style.borderBottom = "4px solid #10b981";
-            }
         }
 
         function atualizarTabela(tempoTotal, contagem) {
@@ -249,11 +498,11 @@
             window.meuGrafico = new Chart(ctx, {
                 type: 'bar',
                 data: { labels: Object.keys(dados), datasets: [{ label: 'Kg por Separador', data: Object.values(dados), backgroundColor: '#38bdf8' }] },
-                options: { responsive: true, maintainAspectRatio: false }
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: '#94a3b8' } } }, scales: { x: { ticks: { color: '#94a3b8' } }, y: { ticks: { color: '#94a3b8' } } } }
             });
         }
 
-        // Atualiza a cada 60 segundos
+        // Atualização automática a cada 60 segundos
         setInterval(atualizarDados, 60000);
         atualizarDados();
     </script>
