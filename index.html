@@ -27,7 +27,7 @@
         th, td { padding: 12px; text-align: left; border-bottom: 1px solid #334155; }
         th { color: #38bdf8; }
 
-        /* Estilos do Animação do Caminhão */
+        /* Estilos da Animação do Caminhão */
         .truck-container {
             position: relative;
             width: 100%;
@@ -59,7 +59,7 @@
         .truck-inner-text { font-size: 9px; font-family: 'Roboto', sans-serif; font-weight: bold; text-anchor: middle; dominant-baseline: middle; pointer-events: none; }
         #details { font-size: 11px; color: #94a3b8; margin: 0; }
 
-        /* Animações CSS do Caminhão e Trabalhadores */
+        /* Animações CSS */
         @keyframes waveMove { 0% { transform: translateX(0); } 100% { transform: translateX(-50px); } }
         .arm-throw { animation: armThrow 2s ease-in-out infinite; transform-origin: 11.5px 31.5px; }
         .arm-arrange { animation: armArrange 2s ease-in-out infinite; transform-origin: -0.5px 48.5px; }
@@ -247,13 +247,13 @@
                 </svg>
             </div>
 
-            <div class="percentage-display" id="pct-text">100%</div>
+            <div class="percentage-display" id="pct-text">0%</div>
             <div class="progress-bar-container"><div class="progress-bar" id="bar"></div></div>
             <p id="details">A calcular progresso...</p>
         </div>
     </div>
 
-    <!-- SEÇÃO REPOSICIONADA: GRÁFICO DE TENDÊNCIA E PREVISÃO (Abaixo dos indicadores) -->
+    <!-- SEÇÃO REPOSICIONADA: GRÁFICO DE TENDÊNCIA E PREVISÃO -->
     <div class="container-grafico" style="height: 250px;">
         <div class="titulo-card" style="text-align: center; font-size: 16px; color: #38bdf8; margin-bottom: 10px;">
             Tendência e Previsão de Tempo Médio (Anual)
@@ -277,9 +277,22 @@
     <script>
         const urlCSV = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSL3CqlLCDtDL86CTEbVn0xWs1CmiG8cRY2sje9c9sqy8z4SMj3Fhqh_od5rte0yNP6fxPYB4VoFZwX/pub?gid=0&single=true&output=csv';
 
+        // Função para converter strings formatadas ou números para float com precisão
+        function parseNumero(valor) {
+            if (typeof valor === 'number') return valor;
+            if (!valor) return 0;
+            let str = String(valor).trim();
+            if (str.includes(',')) {
+                str = str.replace(/\./g, '').replace(',', '.');
+            } else if ((str.match(/\./g) || []).length > 1) {
+                str = str.replace(/\./g, '');
+            }
+            let n = parseFloat(str);
+            return isNaN(n) ? 0 : n;
+        }
+
         async function atualizarDados() {
             try {
-                // Parâmetro anti-cache (_t) garante atualização imediata no GitHub Pages
                 const res = await fetch(urlCSV + '&_t=' + Date.now());
                 const data = await res.text();
                 
@@ -306,13 +319,11 @@
                             if (dataIni && dataFim && (dataLinha < dataIni || dataLinha > dataFim)) return;
 
                             let resp = r[colResp];
-                            let peso = parseFloat(String(r[colPeso] || 0).replace('.', '').replace(',', '.'));
-                            
+                            let peso = parseNumero(r[colPeso]);
                             let temFim = r[colFim] && String(r[colFim]).trim() !== '';
 
                             if (peso > 0) {
                                 totalPeso += peso;
-                                // Se não possui responsável ou falta horário de término, considera como carga pendente
                                 if (!resp || !temFim) {
                                     pesoPendente += peso;
                                 }
@@ -351,13 +362,13 @@
                             }
                         });
 
-                        document.getElementById('txt-peso').innerText = totalPeso.toLocaleString('pt-BR', {minimumFractionDigits: 2}) + " Kg";
+                        document.getElementById('txt-peso').innerText = totalPeso.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + " Kg";
                         document.getElementById('txt-cargas').innerText = contagem;
                         let mediaGeral = contagem > 0 ? (tempoTotalGeral / contagem) : 0;
                         document.getElementById('txt-tempo').innerText = mediaGeral.toFixed(1) + " min";
                         
-                        // Cálculo da Porcentagem Pendente para o Caminhão
-                        let pctPendente = totalPeso > 0 ? Math.round((pesoPendente / totalPeso) * 100) : 0;
+                        // Cálculo da Porcentagem Pendente exata
+                        let pctPendente = totalPeso > 0 ? (pesoPendente / totalPeso) * 100 : 0;
                         pctPendente = Math.max(0, Math.min(100, pctPendente));
 
                         renderizarCaminhao(pctPendente, pesoPendente, totalPeso);
@@ -371,27 +382,36 @@
             }
         }
 
-        // Função que renderiza e anima o Caminhão SVG no card superior
+        // Renderização e Animação do Caminhão com formatação decimal ajustada
         function renderizarCaminhao(porcentagem, pesoPendente, pesoTotal) {
-            document.getElementById('pct-text').innerText = porcentagem + "%";
-            var truckTextShadow = document.getElementById('truck-text-shadow');
-            truckTextShadow.textContent = porcentagem + "%";
+            let pctFormatado = "0%";
+            if (porcentagem > 0) {
+                if (porcentagem < 1) {
+                    pctFormatado = porcentagem.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 2 }) + "%";
+                } else {
+                    pctFormatado = porcentagem.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 1 }) + "%";
+                }
+            }
+
+            document.getElementById('pct-text').innerText = pctFormatado;
+            let truckTextShadow = document.getElementById('truck-text-shadow');
+            truckTextShadow.textContent = pctFormatado;
             
-            document.getElementById('details').innerText = "Falta separar: " + pesoPendente.toLocaleString('pt-BR', {minimumFractionDigits: 2}) + " Kg de " + pesoTotal.toLocaleString('pt-BR', {minimumFractionDigits: 2}) + " Kg.";
+            document.getElementById('details').innerText = "Falta separar: " + pesoPendente.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + " Kg de " + pesoTotal.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + " Kg.";
             
-            var barra = document.getElementById('bar');
+            let barra = document.getElementById('bar');
             barra.style.width = porcentagem + "%";
             
-            var liquidContainer = document.getElementById('liquid-container');
-            var liquidWave = document.getElementById('liquid-wave');
+            let liquidContainer = document.getElementById('liquid-container');
+            let liquidWave = document.getElementById('liquid-wave');
             
-            var alturaY = 50 - (porcentagem * 0.40);
+            let alturaY = 50 - (porcentagem * 0.40);
             liquidContainer.setAttribute('transform', 'translate(0, ' + alturaY + ')');
             
-            var groupWorking = document.getElementById('workers-working');
-            var groupResting = document.getElementById('workers-resting');
+            let groupWorking = document.getElementById('workers-working');
+            let groupResting = document.getElementById('workers-resting');
 
-            if (porcentagem === 0) {
+            if (porcentagem <= 0) {
                 liquidWave.setAttribute('fill', '#4caf50'); 
                 truckTextShadow.setAttribute('fill', '#ffffff');
                 liquidWave.style.animation = "none"; 
@@ -418,7 +438,6 @@
             }
         }
 
-        // Gráfico de Tendência (Com Regressão Linear Simples)
         function gerarGraficoTendencia(mesesHistoricos) {
             const META_LIMITE = 30;
             const labelsMeses = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
@@ -502,7 +521,6 @@
             });
         }
 
-        // Atualização automática a cada 60 segundos
         setInterval(atualizarDados, 60000);
         atualizarDados();
     </script>
