@@ -117,7 +117,7 @@
         até <input type="date" id="data-fim" onchange="atualizarDados()">
     </div>
 
-    <!-- CARDS SUPERIORES DE INDICADORES -->
+    <!-- CARDS SUPERIORES -->
     <div class="grid-stats">
         <div class="card">
             <div class="titulo-card">Peso Total</div>
@@ -169,6 +169,7 @@
         const webAppUrl = 'https://script.google.com/macros/s/AKfycbybu_SnLR1fE17ixG6gMjf1ykZJ1NTdWVh5_W0wSo4GIEa_j7loC8jXcjhNA631-U6E/exec?api=true';
         const urlCSV = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSL3CqlLCDtDL86CTEbVn0xWs1CmiG8cRY2sje9c9sqy8z4SMj3Fhqh_od5rte0yNP6fxPYB4VoFZwX/pub?gid=0&single=true&output=csv';
 
+        // Trata conversão de números (ponto e vírgula)
         function parseNumero(valor) {
             if (typeof valor === 'number') return valor;
             if (!valor) return 0;
@@ -182,29 +183,45 @@
             return isNaN(n) ? 0 : n;
         }
 
+        // Extrai a hora numérica de forma hiper-resistente a variações de texto
+        function extrairHoraNumerica(horarioStr) {
+            if (!horarioStr) return null;
+            let str = String(horarioStr).trim().toLowerCase();
+            let match = str.match(/(\d{1,2}):(\d{2})/);
+            if (match) {
+                let h = parseInt(match[1], 10);
+                if (str.includes('pm') && h < 12) h += 12;
+                if (str.includes('am') && h === 12) h = 0;
+                return h;
+            }
+            return null;
+        }
+
         async function atualizarDados() {
             let dadosApiAppsScript = null;
 
-            // 1. TENTA BUSCAR OS DADOS DO LOTE VIA APPS SCRIPT
+            // Tenta consultar Apps Script com Timeout
             try {
-                const response = await fetch(webAppUrl);
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 3000);
+                const response = await fetch(webAppUrl, { signal: controller.signal });
+                clearTimeout(timeoutId);
                 if (response.ok) {
                     dadosApiAppsScript = await response.json();
                 }
             } catch (e) {
-                console.log("Consulta API direta falhou, utilizando cálculo CSV...");
+                console.warn("API AppsScript indisponível, chaveando para processamento nativo via CSV.");
             }
 
-            // 2. CARREGA DADOS DO CSV
+            // Lê a planilha publicada via CSV
             try {
                 const res = await fetch(urlCSV + '&_t=' + Date.now());
                 const data = await res.text();
-                
-                const dataIni = document.getElementById('data-ini').value;
-                const dataFim = document.getElementById('data-fim').value;
 
                 Papa.parse(data, {
-                    header: true, dynamicTyping: true, skipEmptyLines: true,
+                    header: true,
+                    dynamicTyping: true,
+                    skipEmptyLines: true,
                     complete: function(results) {
                         let totalPesoGeral = 0;
                         let contagem = 0, tempoTotalGeral = 0;
@@ -212,6 +229,8 @@
                         const mesesHistoricos = Array(12).fill(null).map(() => ({ totalTempo: 0, contagem: 0 }));
 
                         let rowsProcessed = [];
+                        let pesoLoteFallback = 0;
+                        let pesoPendenteFallback = 0;
 
                         results.data.forEach(r => {
                             let keys = Object.keys(r);
@@ -229,12 +248,20 @@
                             if (peso <= 0) return;
                             totalPesoGeral += peso;
 
+                            let horaFimNum = extrairHoraNumerica(r[colFim]);
+
                             rowsProcessed.push({
                                 resp: resp,
                                 peso: peso,
-                                colFim: r[colFim],
-                                temFim: temFim
+                                temFim: temFim,
+                                horaFimNum: horaFimNum
                             });
+
+                            // Fallback de cálculo de Lote Nativo
+                            pesoLoteFallback += peso;
+                            if (!resp || !temFim) {
+                                pesoPendenteFallback += peso;
+                            }
 
                             if (resp && temFim) {
                                 let inicio = new Date('1970-01-01T' + (r[colIni] || '00:00:00'));
@@ -260,17 +287,19 @@
                             }
                         });
 
+                        // Atualiza indicadores superiores
                         document.getElementById('txt-peso').innerText = totalPesoGeral.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + " Kg";
                         document.getElementById('txt-cargas').innerText = contagem;
                         let mediaGeral = contagem > 0 ? (tempoTotalGeral / contagem) : 0;
                         document.getElementById('txt-tempo').innerText = mediaGeral.toFixed(1) + " min";
 
-                        let pesoTotalLote = dadosApiAppsScript ? dadosApiAppsScript.pesoTotal : 5815;
-                        let pesoPendenteLote = dadosApiAppsScript ? dadosApiAppsScript.pesoPendente : 3717;
+                        // Define os pesos principais (API ou Redundância CSV)
+                        let pesoTotalLote = (dadosApiAppsScript && dadosApiAppsScript.pesoTotal) ? dadosApiAppsScript.pesoTotal : pesoLoteFallback;
+                        let pesoPendenteLote = (dadosApiAppsScript && dadosApiAppsScript.pesoPendente) ? dadosApiAppsScript.pesoPendente : pesoPendenteFallback;
 
                         document.getElementById('details').innerText = "Falta separar: " + Math.round(pesoPendenteLote).toLocaleString('pt-BR') + " kg de " + Math.round(pesoTotalLote).toLocaleString('pt-BR') + " kg definidos no lote.";
 
-                        // RENDERIZA O GRÁFICO DE BURNDOWN
+                        // RENDERIZA BURNDOWN
                         desenharBurndown(pesoTotalLote, rowsProcessed);
 
                         atualizarTabela(tempoPorResp, contagemPorResp);
@@ -279,44 +308,51 @@
                     }
                 });
             } catch (err) {
-                console.error("Erro ao carregar dados:", err);
+                console.error("Erro na atualização:", err);
             }
         }
 
-        // DESENHA O GRÁFICO DE BURNDOWN
+        // DESENHO DO GRÁFICO DE BURNDOWN ROBUSTO
         function desenharBurndown(pesoTotal, rowsProcessed) {
             const horasLabels = ['07:00', '09:00', '11:00', '13:00', '15:00', '17:00', '18:00'];
+            const benchmarks = [7, 9, 11, 13, 15, 17, 18];
             const numPontos = horasLabels.length;
 
-            // Linha da Meta Ideal (Burndown linear de pesoTotal até 0)
+            // 1. Linha da Meta Ideal (Redução constante)
             let dadosIdeais = [];
             for (let i = 0; i < numPontos; i++) {
                 let val = pesoTotal - (pesoTotal * (i / (numPontos - 1)));
                 dadosIdeais.push(Math.max(0, Math.round(val)));
             }
 
-            // Linha Real (Carga Pendente acumulada ao longo das horas)
+            // 2. Linha Real do Burndown
             let pesoConcluidoAteHora = Array(numPontos).fill(0);
+            let horaAtual = new Date().getHours();
 
             rowsProcessed.forEach(r => {
-                if (r.resp && r.temFim && r.colFim) {
-                    let horaFimStr = String(r.colFim).trim();
-                    let horaNum = parseInt(horaFimStr.split(':')[0], 10);
-                    if (!isNaN(horaNum)) {
-                        horasLabels.forEach((hStr, idx) => {
-                            let hBenchmark = parseInt(hStr.split(':')[0], 10);
-                            if (horaNum <= hBenchmark) {
-                                pesoConcluidoAteHora[idx] += r.peso;
-                            }
-                        });
-                    }
+                if (r.resp && r.temFim) {
+                    let hNum = r.horaFimNum;
+                    
+                    // Se a carga foi finalizada mas o horário veio em branco/inválido, usa a hora atual
+                    if (hNum === null) hNum = horaAtual;
+
+                    benchmarks.forEach((bHora, idx) => {
+                        if (hNum <= bHora) {
+                            pesoConcluidoAteHora[idx] += r.peso;
+                        }
+                    });
                 }
             });
 
             let dadosReais = [];
             for (let i = 0; i < numPontos; i++) {
-                let restante = pesoTotal - pesoConcluidoAteHora[i];
-                dadosReais.push(Math.max(0, Math.round(restante)));
+                // Para pontos futuros no tempo, não plota para manter a linha realista até o momento atual
+                if (benchmarks[i] > horaAtual + 1 && i > 0 && dadosReais[i-1] !== null) {
+                    dadosReais.push(null);
+                } else {
+                    let restante = pesoTotal - pesoConcluidoAteHora[i];
+                    dadosReais.push(Math.max(0, Math.round(restante)));
+                }
             }
 
             const ctx = document.getElementById('graficoBurndown').getContext('2d');
@@ -344,6 +380,7 @@
                             borderWidth: 3,
                             pointRadius: 4,
                             pointHoverRadius: 6,
+                            spanGaps: true,
                             fill: true,
                             tension: 0.2
                         }
@@ -459,7 +496,7 @@
 
         window.onload = function() {
             atualizarDados();
-            setInterval(atualizarDados, 15000);
+            setInterval(atualizarDados, 10000); // Atualiza a cada 10 segundos em tempo real
         };
     </script>
 </body>
