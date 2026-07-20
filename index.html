@@ -132,7 +132,7 @@
             <span id="txt-tempo" class="valor">0 min</span>
         </div>
 
-        <!-- CARD DO GRÁFICO DE BURNDOWN (NO LUGAR DA ANIMAÇÃO) -->
+        <!-- CARD DO GRÁFICO DE BURNDOWN -->
         <div class="card card-burndown">
             <div class="titulo-card" style="color: #38bdf8; font-weight: bold; font-size: 16px; margin-bottom: 5px;">
                 Gráfico de Burndown (Progresso do Lote)
@@ -192,7 +192,7 @@
                     dadosApiAppsScript = await response.json();
                 }
             } catch (e) {
-                console.log("Consulta API direta falhou, utilizando calculo CSV...");
+                console.log("Consulta API direta falhou, utilizando cálculo CSV...");
             }
 
             // 2. CARREGA DADOS DO CSV
@@ -268,7 +268,7 @@
                         let pesoTotalLote = dadosApiAppsScript ? dadosApiAppsScript.pesoTotal : 5815;
                         let pesoPendenteLote = dadosApiAppsScript ? dadosApiAppsScript.pesoPendente : 3717;
 
-                        document.getElementById('details').innerText = "Falta separar: " + Math.round(pesoPendenteLote) + " kg de " + Math.round(pesoTotalLote) + " kg definidos no lote.";
+                        document.getElementById('details').innerText = "Falta separar: " + Math.round(pesoPendenteLote).toLocaleString('pt-BR') + " kg de " + Math.round(pesoTotalLote).toLocaleString('pt-BR') + " kg definidos no lote.";
 
                         // RENDERIZA O GRÁFICO DE BURNDOWN
                         desenharBurndown(pesoTotalLote, rowsProcessed);
@@ -283,7 +283,7 @@
             }
         }
 
-        // DESENHA O GRÁFICO DE BURNDOWN NO CARD SUPERIOR
+        // DESENHA O GRÁFICO DE BURNDOWN
         function desenharBurndown(pesoTotal, rowsProcessed) {
             const horasLabels = ['07:00', '09:00', '11:00', '13:00', '15:00', '17:00', '18:00'];
             const numPontos = horasLabels.length;
@@ -295,7 +295,7 @@
                 dadosIdeais.push(Math.max(0, Math.round(val)));
             }
 
-            // Linha Real (Carga Pendente ao longo das horas)
+            // Linha Real (Carga Pendente acumulada ao longo das horas)
             let pesoConcluidoAteHora = Array(numPontos).fill(0);
 
             rowsProcessed.forEach(r => {
