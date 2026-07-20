@@ -531,7 +531,6 @@
     <script>
         const urlCSV = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSL3CqlLCDtDL86CTEbVn0xWs1CmiG8cRY2sje9c9sqy8z4SMj3Fhqh_od5rte0yNP6fxPYB4VoFZwX/pub?gid=0&single=true&output=csv';
 
-        // Padroniza os formatos de data para YYYY-MM-DD para evitar falhas de comparação
         function normalizarData(dataStr) {
             if (!dataStr) return '';
             let str = String(dataStr).trim();
@@ -571,79 +570,76 @@
                 Papa.parse(data, {
                     header: true, dynamicTyping: true, skipEmptyLines: true,
                     complete: function(results) {
-                        let rowsProcessed = [];
-
-                        results.data.forEach(r => {
-                            let keys = Object.keys(r);
-                            let colResp = keys.find(k => k.toLowerCase().includes('respons') || k.toLowerCase().includes('nome') || k.toLowerCase().includes('separador'));
-                            let colPeso = keys.find(k => k.toLowerCase().includes('peso'));
-                            let colIni = keys.find(k => k.toLowerCase().includes('início') || k.toLowerCase().includes('inicio'));
-                            let colFim = keys.find(k => k.toLowerCase().includes('termino') || k.toLowerCase().includes('término'));
-                            let colData = keys.find(k => k.toLowerCase().includes('data'));
-                            let colLote = keys.find(k => k.toLowerCase().includes('lote') || k.toLowerCase().includes('meta'));
-
-                            let resp = r[colResp] ? String(r[colResp]).trim() : '';
-                            let peso = parseNumero(r[colPeso]);
-                            let dataStr = r[colData] ? normalizarData(r[colData]) : '';
-                            let temFim = r[colFim] && String(r[colFim]).trim() !== '';
-                            let valorLote = colLote ? parseNumero(r[colLote]) : 0;
-
-                            if (peso > 0) {
-                                rowsProcessed.push({
-                                    resp: resp,
-                                    peso: peso,
-                                    data: dataStr,
-                                    colIni: r[colIni],
-                                    colFim: r[colFim],
-                                    temFim: temFim,
-                                    valorLote: valorLote
-                                });
-                            }
-                        });
-
                         let totalPesoGeral = 0;
                         let contagem = 0, tempoTotalGeral = 0;
                         let pesoPorResp = {}, tempoPorResp = {}, contagemPorResp = {};
                         const mesesHistoricos = Array(12).fill(null).map(() => ({ totalTempo: 0, contagem: 0 }));
 
                         let pesoPendenteLote = 0;
-                        let pesoLoteCalculado = 0;
-                        let pesoLoteExplicit = 0;
+                        let pesoLoteTotal = 0;
 
-                        rowsProcessed.forEach(r => {
+                        const totalRows = results.data.length;
+
+                        results.data.forEach((r, index) => {
+                            let sheetRowNumber = index + 2; // Número real da linha na planilha (cabeçalho = 1)
+
+                            let keys = Object.keys(r);
+                            let colResp = keys.find(k => k.toLowerCase().includes('respons') || k.toLowerCase().includes('nome') || k.toLowerCase().includes('separador'));
+                            let colPeso = keys.find(k => k.toLowerCase().includes('peso'));
+                            let colIni = keys.find(k => k.toLowerCase().includes('início') || k.toLowerCase().includes('inicio'));
+                            let colFim = keys.find(k => k.toLowerCase().includes('termino') || k.toLowerCase().includes('término'));
+                            let colData = keys.find(k => k.toLowerCase().includes('data'));
+
+                            let resp = r[colResp] ? String(r[colResp]).trim() : '';
+                            let peso = parseNumero(r[colPeso]);
+                            let dataStr = r[colData] ? normalizarData(r[colData]) : '';
+                            let temFim = r[colFim] && String(r[colFim]).trim() !== '';
+
+                            if (peso <= 0) return;
+
                             if (dataIni && dataFim) {
                                 let nIni = normalizarData(dataIni);
                                 let nFim = normalizarData(dataFim);
-                                if (r.data && (r.data < nIni || r.data > nFim)) return;
+                                if (dataStr && (dataStr < nIni || dataStr > nFim)) return;
                             }
 
-                            totalPesoGeral += r.peso;
-                            if (r.valorLote > 0) pesoLoteExplicit = r.valorLote;
+                            totalPesoGeral += peso;
 
-                            let isPendente = (!r.resp || !r.temFim);
-
-                            // Lógica de Lote: Cargas pendentes + cargas concluídas do lote em andamento
-                            if (isPendente) {
-                                pesoPendenteLote += r.peso;
-                                pesoLoteCalculado += r.peso;
+                            // Isolamento da faixa do LOTE ATIVO (Linhas 600+ conforme L. 600+)
+                            let pertenceAoLote = false;
+                            if (totalRows >= 500) {
+                                pertenceAoLote = (sheetRowNumber >= 600);
                             } else {
-                                pesoLoteCalculado += r.peso;
+                                pertenceAoLote = true;
                             }
 
-                            if (r.resp && r.temFim) {
-                                let inicio = new Date('1970-01-01T' + (r.colIni || '00:00:00'));
-                                let fim = new Date('1970-01-01T' + (r.colFim || '00:00:00'));
+                            if (pertenceAoLote) {
+                                pesoLoteTotal += peso;
+                                if (!resp || !temFim) {
+                                    pesoPendenteLote += peso;
+                                }
+                            } else {
+                                // Caso haja pendências em linhas anteriores ao 600
+                                if (!resp || !temFim) {
+                                    pesoPendenteLote += peso;
+                                    pesoLoteTotal += peso;
+                                }
+                            }
+
+                            if (resp && temFim) {
+                                let inicio = new Date('1970-01-01T' + (r[colIni] || '00:00:00'));
+                                let fim = new Date('1970-01-01T' + (r[colFim] || '00:00:00'));
                                 let duracao = (fim - inicio) / 60000;
 
                                 if (duracao > 0) {
-                                    pesoPorResp[r.resp] = (pesoPorResp[r.resp] || 0) + r.peso;
-                                    tempoPorResp[r.resp] = (tempoPorResp[r.resp] || 0) + duracao;
-                                    contagemPorResp[r.resp] = (contagemPorResp[r.resp] || 0) + 1;
+                                    pesoPorResp[resp] = (pesoPorResp[resp] || 0) + peso;
+                                    tempoPorResp[resp] = (tempoPorResp[resp] || 0) + duracao;
+                                    contagemPorResp[resp] = (contagemPorResp[resp] || 0) + 1;
                                     contagem++;
                                     tempoTotalGeral += duracao;
 
-                                    if (r.data) {
-                                        let d = new Date(r.data);
+                                    if (dataStr) {
+                                        let d = new Date(dataStr);
                                         if (!isNaN(d.getTime())) {
                                             let m = d.getMonth();
                                             mesesHistoricos[m].totalTempo += duracao;
@@ -659,14 +655,13 @@
                         let mediaGeral = contagem > 0 ? (tempoTotalGeral / contagem) : 0;
                         document.getElementById('txt-tempo').innerText = mediaGeral.toFixed(1) + " min";
                         
-                        let pesoLoteFinal = pesoLoteExplicit > 0 ? pesoLoteExplicit : pesoLoteCalculado;
-                        let pctPendente = pesoLoteFinal > 0 ? Math.round((pesoPendenteLote / pesoLoteFinal) * 100) : 0;
+                        let pctPendente = pesoLoteTotal > 0 ? Math.round((pesoPendenteLote / pesoLoteTotal) * 100) : 0;
                         pctPendente = Math.max(0, Math.min(100, pctPendente));
 
                         renderizarDados({
                             porcentagem: pctPendente,
                             pesoPendente: pesoPendenteLote,
-                            pesoTotal: pesoLoteFinal
+                            pesoTotal: pesoLoteTotal
                         });
 
                         atualizarTabela(tempoPorResp, contagemPorResp);
@@ -679,7 +674,7 @@
             }
         }
 
-        // Função EXATAMENTE espelhada do Apps Script (image_5748c2.png)
+        // Função idêntica ao Google Apps Script (image_5748c2.png)
         function renderizarDados(resultado) {
             var pct = resultado.porcentagem;
             
