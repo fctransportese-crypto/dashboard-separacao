@@ -33,7 +33,6 @@
         <div class="card">Peso Total<span id="txt-peso" class="valor">0 Kg</span></div>
         <div class="card">Total Cargas<span id="txt-cargas" class="valor">0</span></div>
         <div class="card">Tempo Médio Equipe<span id="txt-tempo" class="valor">0 min</span></div>
-        <!-- Card substituído por um container amplo para o gráfico de tendência -->
         <div class="card card-grafico" id="card-meta">
             <div class="titulo-card-meta">Tendência e Previsão de Tempo Médio (Anual)</div>
             <div style="flex-grow: 1; height: 130px; position: relative;">
@@ -55,77 +54,80 @@
         const urlCSV = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSL3CqlLCDtDL86CTEbVn0xWs1CmiG8cRY2sje9c9sqy8z4SMj3Fhqh_od5rte0yNP6fxPYB4VoFZwX/pub?gid=0&single=true&output=csv';
 
         async function atualizarDados() {
-            const res = await fetch(urlCSV);
-            const data = await res.text();
-            
-            const dataIni = document.getElementById('data-ini').value;
-            const dataFim = document.getElementById('data-fim').value;
+            try {
+                // Adicionamos ?_t=timestamp para EVITAR O CACHE do navegador
+                const response = await fetch(urlCSV + '&_t=' + Date.now());
+                const data = await response.text();
+                
+                const dataIni = document.getElementById('data-ini').value;
+                const dataFim = document.getElementById('data-fim').value;
 
-            Papa.parse(data, {
-                header: true, dynamicTyping: true, skipEmptyLines: true,
-                complete: function(results) {
-                    let totalPeso = 0, contagem = 0, tempoTotalGeral = 0;
-                    let pesoPorResp = {}, tempoPorResp = {}, contagemPorResp = {};
-                    
-                    // Estrutura para agrupar dados históricos por mês (0 = Jan, 11 = Dez)
-                    const mesesHistoricos = Array(12).fill(null).map(() => ({ totalTempo: 0, contagem: 0 }));
+                Papa.parse(data, {
+                    header: true, dynamicTyping: true, skipEmptyLines: true,
+                    complete: function(results) {
+                        let totalPeso = 0, contagem = 0, tempoTotalGeral = 0;
+                        let pesoPorResp = {}, tempoPorResp = {}, contagemPorResp = {};
+                        
+                        const mesesHistoricos = Array(12).fill(null).map(() => ({ totalTempo: 0, contagem: 0 }));
 
-                    results.data.forEach(r => {
-                        let keys = Object.keys(r);
-                        let colResp = keys.find(k => k.toLowerCase().includes('respons') || k.toLowerCase().includes('nome'));
-                        let colPeso = keys.find(k => k.toLowerCase().includes('peso'));
-                        let colIni = keys.find(k => k.toLowerCase().includes('início') || k.toLowerCase().includes('inicio'));
-                        let colFim = keys.find(k => k.toLowerCase().includes('termino') || k.toLowerCase().includes('término'));
-                        let colData = keys.find(k => k.toLowerCase().includes('data'));
+                        results.data.forEach(r => {
+                            let keys = Object.keys(r);
+                            let colResp = keys.find(k => k.toLowerCase().includes('respons') || k.toLowerCase().includes('nome'));
+                            let colPeso = keys.find(k => k.toLowerCase().includes('peso'));
+                            let colIni = keys.find(k => k.toLowerCase().includes('início') || k.toLowerCase().includes('inicio'));
+                            let colFim = keys.find(k => k.toLowerCase().includes('termino') || k.toLowerCase().includes('término'));
+                            let colData = keys.find(k => k.toLowerCase().includes('data'));
 
-                        let dataLinha = r[colData]; 
-                        if (dataIni && dataFim && (dataLinha < dataIni || dataLinha > dataFim)) return;
+                            let dataLinha = r[colData]; 
+                            if (dataIni && dataFim && (dataLinha < dataIni || dataLinha > dataFim)) return;
 
-                        let resp = r[colResp];
-                        let peso = parseFloat(String(r[colPeso] || 0).replace('.', '').replace(',', '.'));
-                        let inicio = new Date('1970-01-01T' + (r[colIni] || '00:00:00'));
-                        let fim = new Date('1970-01-01T' + (r[colFim] || '00:00:00'));
-                        let duracao = (fim - inicio) / 60000;
+                            let resp = r[colResp];
+                            let peso = parseFloat(String(r[colPeso] || 0).replace('.', '').replace(',', '.'));
+                            let inicio = new Date('1970-01-01T' + (r[colIni] || '00:00:00'));
+                            let fim = new Date('1970-01-01T' + (r[colFim] || '00:00:00'));
+                            let duracao = (fim - inicio) / 60000;
 
-                        if (resp && peso > 0 && duracao > 0) {
-                            pesoPorResp[resp] = (pesoPorResp[resp] || 0) + peso;
-                            tempoPorResp[resp] = (tempoPorResp[resp] || 0) + duracao;
-                            contagemPorResp[resp] = (contagemPorResp[resp] || 0) + 1;
-                            totalPeso += peso;
-                            contagem++;
-                            tempoTotalGeral += duracao;
+                            if (resp && peso > 0 && duracao > 0) {
+                                pesoPorResp[resp] = (pesoPorResp[resp] || 0) + peso;
+                                tempoPorResp[resp] = (tempoPorResp[resp] || 0) + duracao;
+                                contagemPorResp[resp] = (contagemPorResp[resp] || 0) + 1;
+                                totalPeso += peso;
+                                contagem++;
+                                tempoTotalGeral += duracao;
 
-                            // Tenta extrair o mês da linha para montar a série temporal anual
-                            if (dataLinha) {
-                                let d = new Date(dataLinha);
-                                if (!isNaN(d.getTime())) {
-                                    let m = d.getMonth();
-                                    mesesHistoricos[m].totalTempo += duracao;
-                                    mesesHistoricos[m].contagem++;
-                                } else {
-                                    let partes = String(dataLinha).split(/[-/]/);
-                                    if (partes.length >= 2) {
-                                        let m = parseInt(partes[1], 10) - 1;
-                                        if (m >= 0 && m <= 11) {
-                                            mesesHistoricos[m].totalTempo += duracao;
-                                            mesesHistoricos[m].contagem++;
+                                if (dataLinha) {
+                                    let d = new Date(dataLinha);
+                                    if (!isNaN(d.getTime())) {
+                                        let m = d.getMonth();
+                                        mesesHistoricos[m].totalTempo += duracao;
+                                        mesesHistoricos[m].contagem++;
+                                    } else {
+                                        let partes = String(dataLinha).split(/[-/]/);
+                                        if (partes.length >= 2) {
+                                            let m = parseInt(partes[1], 10) - 1;
+                                            if (m >= 0 && m <= 11) {
+                                                mesesHistoricos[m].totalTempo += duracao;
+                                                mesesHistoricos[m].contagem++;
+                                            }
                                         }
                                     }
                                 }
                             }
-                        }
-                    });
+                        });
 
-                    document.getElementById('txt-peso').innerText = totalPeso.toLocaleString('pt-BR', {minimumFractionDigits: 2}) + " Kg";
-                    document.getElementById('txt-cargas').innerText = contagem;
-                    let mediaGeral = contagem > 0 ? (tempoTotalGeral / contagem) : 0;
-                    document.getElementById('txt-tempo').innerText = mediaGeral.toFixed(1) + " min";
-                    
-                    atualizarTabela(tempoPorResp, contagemPorResp);
-                    desenharGrafico(pesoPorResp);
-                    gerarGraficoTendencia(mesesHistoricos);
-                }
-            });
+                        document.getElementById('txt-peso').innerText = totalPeso.toLocaleString('pt-BR', {minimumFractionDigits: 2}) + " Kg";
+                        document.getElementById('txt-cargas').innerText = contagem;
+                        let mediaGeral = contagem > 0 ? (tempoTotalGeral / contagem) : 0;
+                        document.getElementById('txt-tempo').innerText = mediaGeral.toFixed(1) + " min";
+                        
+                        atualizarTabela(tempoPorResp, contagemPorResp);
+                        desenharGrafico(pesoPorResp);
+                        gerarGraficoTendencia(mesesHistoricos);
+                    }
+                });
+            } catch (err) {
+                console.error("Erro ao buscar CSV da planilha:", err);
+            }
         }
 
         function gerarGraficoTendencia(mesesHistoricos) {
@@ -135,7 +137,6 @@
             let mediasReais = Array(12).fill(null);
             let xPoints = [], yPoints = [];
 
-            // Calcula as médias reais encontradas nos meses convertidos
             for (let i = 0; i < 12; i++) {
                 if (mesesHistoricos[i].contagem > 0) {
                     let mediaMes = mesesHistoricos[i].totalTempo / mesesHistoricos[i].contagem;
@@ -145,7 +146,6 @@
                 }
             }
 
-            // Cálculo estatístico de Regressão Linear Simples: y = mx + b
             let slope = 0, intercept = META_LIMITE; 
             const n = xPoints.length;
             if (n > 1) {
@@ -162,16 +162,13 @@
                 intercept = yPoints[0];
             }
 
-            // Gera a projeção contínua da reta de tendência para todos os meses do ano
             let valoresTendencia = [];
             for (let i = 0; i < 12; i++) {
                 valoresTendencia.push(parseFloat((slope * i + intercept).toFixed(1)));
             }
 
-            // Definição estática da linha horizontal de meta
             let valoresMeta = Array(12).fill(META_LIMITE);
 
-            // Renderização ou reajuste do Chart.js interno do Card
             const ctx = document.getElementById('graficoTendencia').getContext('2d');
             if (window.meuGraficoTendencia) window.meuGraficoTendencia.destroy();
 
@@ -228,7 +225,6 @@
                 }
             });
 
-            // Altera dinamicamente as bordas decorativas do Card de acordo com o último dado real obtido
             const card = document.getElementById('card-meta');
             const ultimaMediaReal = yPoints[yPoints.length - 1] || 0;
             if (ultimaMediaReal > META_LIMITE) {
@@ -257,6 +253,7 @@
             });
         }
 
+        // Atualiza a cada 60 segundos
         setInterval(atualizarDados, 60000);
         atualizarDados();
     </script>
